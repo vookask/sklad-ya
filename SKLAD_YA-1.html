@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SKLAD.YA — Приёмка товаров в ячейки</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiI+CiAgPHJlY3QgeD0iMSIgeT0iMSIgd2lkdGg9IjE0IiBoZWlnaHQ9IjE0IiBmaWxsPSIjMjJjNTVlIiByeD0iMiIvPgogIDx0ZXh0IHg9IjgiIHk9IjExIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSJ3aGl0ZSIgZm9udC1mYW1pbHk9InN5c3RlbS11aSwgU2Vnb2UgVUksIFJvYm90bywgc2Fucy1zZXJpZiIgZm9udC13ZWlnaHQ9IjcwMCIgZm9udC1zaXplPSI5Ij5TPC90ZXh0Pgo8L3N2Zz4=">
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #111827;
+      --ink: #e5e7eb;
+      --muted: #9ca3af;
+      --accent: #22c55e;
+      --warn: #ef4444;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 14px/1.4 system-ui, Segoe UI, Roboto, Arial;
+    }
+
+    .app-header {
+      @media (max-width: 480px) {
+        font-size: 10px;
+      }
+
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-around;
+      align-items: center;
+      padding: 12px 16px;
+      border-bottom: 1px solid #1f2937;
+      background: #111827;
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    button,
+    .file-label {
+      @media screen and (max-width: 480px) {
+        font-size: 14px;
+      }
+
+      background: #1f2937;
+      color: var(--ink);
+      border: 1px solid #374151;
+      border-radius: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+
+    button:hover,
+    .file-label:hover {
+      border-color: #475569;
+    }
+
+    .file-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .file-label input {
+      display: none;
+    }
+
+    .search-container {
+
+      display: flex;
+      padding: 12px 16px;
+      gap: 12px;
+    }
+
+    .search-container label {
+      color: var(--ink);
+      font-weight: 500;
+      min-width: 120px;
+    }
+
+    .search-container input {
+      flex: 1;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid #374151;
+      background: #0b1220;
+      color: var(--ink);
+    }
+
+    .search-container input:focus {
+      border-color: #22c55e;
+      outline: none;
+    }
+
+    .search-container button {
+      padding: 8px 16px;
+    }
+
+    .table-container {
+      padding: 0 16px 12px 16px;
+      overflow: auto;
+      height: calc(100vh - 210px);
+    }
+
+    #dataTable {
+      border-collapse: separate;
+      border-spacing: 0;
+      min-width: 800px;
+      width: 100%;
+    }
+
+    #dataTable th,
+    #dataTable td {
+      border: 1px solid #374151;
+      padding: 6px 8px;
+      background: #0b1220;
+    }
+
+    #dataTable th {
+      position: sticky;
+      top: 0;
+      background: #0f1b2d;
+      z-index: 1;
+    }
+
+    .document-header {
+      background: #1a1a2e !important;
+      color: #9ca3af;
+      font-weight: normal;
+      font-style: italic;
+    }
+
+    .table-header {
+      background: #0f1b2d !important;
+      color: #e5e7eb;
+      font-weight: bold;
+    }
+
+    #dataTable td[contenteditable="true"] {
+      outline: none;
+    }
+
+    #dataTable td[contenteditable="true"]:focus {
+      outline: 2px solid #22c55e;
+      outline-offset: -2px;
+    }
+
+    .editable-cell {
+      background: #0f1b2d !important;
+      cursor: text;
+    }
+
+    .editable-cell:hover {
+      background: #1a202c !important;
+    }
+
+    .editable-cell:focus {
+      background: #1e293b !important;
+      outline: 2px solid #22c55e;
+      outline-offset: -2px;
+    }
+
+    .readonly-cell {
+      background: #0b1220 !important;
+      cursor: default;
+      color: #9ca3af !important;
+    }
+
+    .readonly-cell:hover {
+      background: #0b1220 !important;
+    }
+
+    .bad {
+      background: rgba(239, 68, 68, 0.15);
+    }
+
+    .good {
+      background: rgba(34, 197, 94, 0.18);
+    }
+
+    .status-ok {
+      background: rgba(34, 197, 94, 0.2) !important;
+      color: #22c55e !important;
+    }
+
+    .status-warn {
+      background: rgba(251, 191, 36, 0.2) !important;
+      color: #fbbf24 !important;
+    }
+
+    .app-footer {
+      padding: 10px 16px;
+      border-top: 1px solid #1f2937;
+      color: var(--muted);
+    }
+
+    /* Новые стили для кнопки "+" и модального окна */
+    .cell-storage-td {
+      min-width: 100px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .add-cell-btn {
+      background: #1f2937;
+      border: 1px solid #374151;
+      color: var(--ink);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .add-cell-btn:hover {
+      border-color: #475569;
+    }
+
+    .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    .modal-content {
+      background: var(--card);
+      padding: 20px;
+      border-radius: 8px;
+      width: 300px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .modal-content label {
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    .modal-content input,
+    .modal-content select {
+      width: 100%;
+      padding: 4px;
+      background: #0b1220;
+      border: 1px solid #374151;
+      color: var(--ink);
+      border-radius: 4px;
+    }
+
+    .modal-content button {
+      background: #1f2937;
+      color: var(--ink);
+      border: 1px solid #374151;
+      border-radius: 4px;
+      padding: 6px 12px;
+      cursor: pointer;
+    }
+
+    .modal-content button:hover {
+      border-color: #475569;
+    }
+
+    .choice-btn {
+      background: #1f2937;
+      border: 1px solid #374151;
+      color: var(--ink);
+      border-radius: 4px;
+      padding: 4px 8px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .choice-btn:hover {
+      border-color: #475569;
+    }
+
+    .choice-btn.selected-btn {
+      background: #22c55e;
+      border-color: #22c55e;
+      color: white;
+    }
+  </style>
+</head>
+
+<body>
+  <header class="app-header">
+    <h1>Приёмка товаров в ячейки</h1>
+    <div class="actions">
+      <label class="file-label">
+        <input type="file" id="fileInput" accept=".xlsx,.xls" />
+        Открыть Excel
+      </label>
+      <button id="btnSave">Скачать Excel</button>
+      <button id="btnClearTable">Очистить таблицу</button>
+    </div>
+    <div class="search-container">
+      <!-- <label for="searchInput">Поиск товаров</label> -->
+      <input id="searchInput" type="text" placeholder="Введите артикул, название товара или штрихкод..." />
+      <button id="btnClearSearch">Очистить</button>
+    </div>
+  </header>
+
+
+  <main>
+    <div id="tableContainer" class="table-container">
+      <table id="dataTable"></table>
+    </div>
+  </main>
+
+  <footer class="app-footer">
+    <span id="status">Загрузите Excel для начала работы</span>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script>
+    (function () {
+      const $ = sel => document.querySelector(sel);
+      const table = $('#dataTable');
+      const statusEl = $('#status');
+      const fileInput = $('#fileInput');
+      const btnSave = $('#btnSave');
+      const searchInput = $('#searchInput');
+      const btnClearSearch = $('#btnClearSearch');
+
+      let workbookJson = null; // { headers:[], rows:[[]] }
+      let filteredRows = null; // отфильтрованные строки для поиска
+
+      const STORAGE_KEY = 'skladya_data';
+
+      function setStatus(text) { statusEl.textContent = text; }
+
+      // Загрузка данных из localStorage при запуске
+      function loadFromStorage() {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            workbookJson = parsed;
+            renderTable();
+            setStatus(`Данные восстановлены из памяти. Строк: ${workbookJson.rows.length}`);
+          } catch (e) {
+            console.error("Ошибка восстановления данных:", e);
+          }
+        }
+      }
+
+      // Сохранение в localStorage
+      function saveToStorage() {
+        if (workbookJson) {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(workbookJson));
+        }
+      }
+
+      // Вызываем при запуске
+      loadFromStorage();
+
+      function generateCellOptions() {
+        const letters = ['A', 'B', 'C', 'D', 'F', 'I', 'J', 'K', 'S'];
+        const nums1 = Array.from({ length: 13 }, (_, i) => i + 1); // 1-13
+        const nums2 = [1, 2, 3]; // 1-3
+        const nums3 = [1, 2, 3, 4]; // 1-4
+
+        const options = [];
+        for (const letter of letters) {
+          for (const n1 of nums1) {
+            for (const n2 of nums2) {
+              for (const n3 of nums3) {
+                options.push(`${letter}${n1}-${n2}-${n3}`);
+              }
+            }
+          }
+        }
+        return options;
+      }
+
+      function findTableData(aoa) {
+        // Ищем строку с заголовками: ищем строку с текстовыми заголовками
+        let headerRowIndex = -1;
+        let maxHeaderScore = 0;
+
+        for (let i = 0; i < Math.min(aoa.length, 15); i++) { // проверяем первые 15 строк
+          const row = aoa[i] || [];
+          let headerScore = 0;
+
+          // Считаем "заголовочность" строки
+          for (let j = 0; j < Math.min(row.length, 15); j++) {
+            const cell = String(row[j] || '').trim();
+            if (cell === '') continue;
+
+            // Бонус за текстовые заголовки
+            if (/^[а-яё\w\s\-\(\)\.]+$/i.test(cell) && cell.length > 2) {
+              headerScore += 2;
+            }
+            // Бонус за типичные заголовки
+            if (/артикул|товар|код|наименование|количество|цена|штрих|ячейка|остаток/i.test(cell)) {
+              headerScore += 3;
+            }
+            // Штраф за числа в заголовках
+            if (/^\d+(\.\d+)?$/.test(cell)) {
+              headerScore -= 1;
+            }
+          }
+
+          if (headerScore > maxHeaderScore && headerScore >= 3) {
+            maxHeaderScore = headerScore;
+            headerRowIndex = i;
+          }
+        }
+
+        // Если не нашли заголовки, берём первую строку с данными
+        if (headerRowIndex === -1) {
+          for (let i = 0; i < Math.min(aoa.length, 5); i++) {
+            const row = aoa[i] || [];
+            const nonEmptyCount = row.filter(cell => String(cell || '').trim() !== '').length;
+            if (nonEmptyCount >= 2) {
+              headerRowIndex = i;
+              break;
+            }
+          }
+        }
+
+        if (headerRowIndex === -1) return null;
+
+        const headers = aoa[headerRowIndex].map(h => String(h || '').trim());
+
+        // Берём все строки после заголовков
+        let dataRows = aoa.slice(headerRowIndex + 1);
+
+        // Убираем явно пустые строки в конце
+        while (dataRows.length > 0) {
+          const lastRow = dataRows[dataRows.length - 1] || [];
+          const hasData = lastRow.some(cell => {
+            const str = String(cell || '').trim();
+            return str !== '';
+          });
+          if (hasData) break;
+          dataRows.pop();
+        }
+
+        // Убираем строки-разделители и итоги, но оставляем данные
+        dataRows = dataRows.filter((row, idx) => {
+          const firstCell = String(row[0] || '').trim().toLowerCase();
+          const secondCell = String(row[1] || '').trim().toLowerCase();
+          const hasAnyData = row.some(cell => String(cell || '').trim() !== '');
+
+          // Пропускаем пустые строки
+          if (!hasAnyData) return false;
+
+          // Пропускаем служебные строки (итоги, подписи, исполнители)
+          if (firstCell.includes('итого') || firstCell.includes('всего') ||
+            firstCell.includes('подпись') || firstCell.includes('руководитель') ||
+            firstCell.includes('исполнитель') || firstCell.includes('заказчик') ||
+            firstCell.includes('директор') || firstCell.includes('главный') ||
+            secondCell.includes('исполнитель') || secondCell.includes('заказчик')) {
+            return false;
+          }
+
+          // Пропускаем строки, которые выглядят как подписи (много пустых ячеек + текст в конце)
+          const nonEmptyCount = row.filter(cell => String(cell || '').trim() !== '').length;
+          if (nonEmptyCount <= 2 && (firstCell.length > 10 || secondCell.length > 10)) {
+            return false;
+          }
+
+          return true;
+        });
+
+        // Удаляем пустые столбцы
+        const maxCols = Math.max(headers.length, ...dataRows.map(r => r.length));
+        const nonEmptyColumns = [];
+
+        for (let colIdx = 0; colIdx < maxCols; colIdx++) {
+          // Проверяем заголовок
+          const header = String(headers[colIdx] || '').trim();
+          let hasData = header !== '';
+
+          // Проверяем данные в колонке
+          if (!hasData) {
+            hasData = dataRows.some(row => {
+              const cell = String(row[colIdx] || '').trim();
+              return cell !== '';
+            });
+          }
+
+          if (hasData) {
+            nonEmptyColumns.push(colIdx);
+          }
+        }
+
+        // Фильтруем заголовки и строки, оставляя только непустые колонки
+        let filteredHeaders = nonEmptyColumns.map(idx => headers[idx] || '');
+        let filteredRows = dataRows.map(row =>
+          nonEmptyColumns.map(idx => row[idx] || '')
+        );
+
+        // Удаляем колонку "Ед." если она есть
+        const edColIdx = filteredHeaders.findIndex(h =>
+          h.toLowerCase().trim() === 'ед.' || h.toLowerCase().trim() === 'ед'
+        );
+        if (edColIdx !== -1) {
+          filteredHeaders.splice(edColIdx, 1);
+          filteredRows = filteredRows.map(row => {
+            const newRow = [...row];
+            newRow.splice(edColIdx, 1);
+            return newRow;
+          });
+          // Обновляем маппинг колонок
+          nonEmptyColumns.splice(edColIdx, 1);
+        }
+
+        // Добавляем колонки "Факт" и "Статус" после "Кол-во"
+        const kolvoColIdx = filteredHeaders.findIndex(h =>
+          h.toLowerCase().includes('кол') && h.toLowerCase().includes('во')
+        );
+        if (kolvoColIdx !== -1) {
+          const insertIdx = kolvoColIdx + 1;
+          // Добавляем "Факт"
+          filteredHeaders.splice(insertIdx, 0, 'Факт');
+          // Добавляем "Статус" после "Факт"
+          filteredHeaders.splice(insertIdx + 1, 0, 'Статус');
+
+          filteredRows = filteredRows.map(row => {
+            const newRow = [...row];
+            newRow.splice(insertIdx, 0, ''); // пустое значение для "Факт"
+            newRow.splice(insertIdx + 1, 0, ''); // пустое значение для "Статус"
+            return newRow;
+          });
+          // Обновляем маппинг - добавляем -1 для новых колонок
+          nonEmptyColumns.splice(insertIdx, 0, -1, -1);
+        }
+
+        // Проверяем, есть ли колонка "Ячейка хранения"
+        const cellColIdx = filteredHeaders.findIndex(h => h.toLowerCase().includes('ячейка хранения'));
+        if (cellColIdx === -1) {
+          // Если нет — добавляем после "Статус"
+          const statusColIdx = filteredHeaders.findIndex(h => h.toLowerCase() === 'статус');
+          if (statusColIdx !== -1) {
+            const insertIdx = statusColIdx + 1;
+            filteredHeaders.splice(insertIdx, 0, 'Ячейка хранения');
+            filteredRows = filteredRows.map(row => {
+              const newRow = [...row];
+              newRow.splice(insertIdx, 0, '');
+              return newRow;
+            });
+            nonEmptyColumns.splice(insertIdx, 0, -1);
+          }
+        }
+
+        return {
+          headerRowIndex,
+          headers: filteredHeaders,
+          rows: filteredRows,
+          originalAoa: aoa, // сохраняем оригинальные данные
+          columnMapping: nonEmptyColumns // маппинг колонок для восстановления
+        };
+      }
+
+      function loadXlsx(file) {
+        const reader = new FileReader();
+        reader.onload = e => {
+          const data = new Uint8Array(e.target.result);
+          const wb = XLSX.read(data, { type: 'array' });
+          const sheetName = wb.SheetNames[0];
+          const ws = wb.Sheets[sheetName];
+          const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+          if (!aoa.length) { setStatus('Пустой лист'); return; }
+
+          // Автоопределение табличной части
+          const tableData = findTableData(aoa);
+          if (!tableData) { setStatus('Не найдена табличная часть'); return; }
+
+          workbookJson = {
+            sheetName,
+            headers: tableData.headers,
+            rows: tableData.rows,
+            originalAoa: tableData.originalAoa,
+            headerRowIndex: tableData.headerRowIndex,
+            columnMapping: tableData.columnMapping
+          };
+          saveToStorage(); // Сохраняем при загрузке
+          renderTable();
+          setStatus(`Загружено: ${file.name}. Найдена таблица: строк ${tableData.rows.length}, начало на строке ${tableData.headerRowIndex + 1}`);
+        };
+        reader.readAsArrayBuffer(file);
+      }
+
+      function renderTable() {
+        if (!workbookJson) { table.innerHTML = ''; return; }
+        const { headers } = workbookJson;
+        const rowsToShow = filteredRows || workbookJson.rows;
+        const thead = `<thead><tr>${headers.map(h => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>`;
+        const tbody = `<tbody>${rowsToShow.map((r, ri) => `<tr>${r.map((c, ci) => cellHtml(c, ri, ci)).join('')}</tr>`).join('')}</tbody>`;
+        table.innerHTML = thead + tbody;
+        table.addEventListener('click', onCellClick, { capture: false });
+        table.addEventListener('keydown', onCellEdit, { capture: false });
+        table.addEventListener('focusout', onCellEdit, { capture: false });
+      }
+
+      function cellHtml(value, ri, ci) {
+        const headers = workbookJson.headers;
+        const cellColIdx = headers.findIndex(h => h.toLowerCase().includes('ячейка хранения'));
+
+        if (ci === cellColIdx) {
+          const hasValue = value.trim() !== '';
+          const displayValue = hasValue ? `${escapeHtml(String(value))} <button class="add-cell-btn" data-ri="${ri}">+</button>` : `<button class="add-cell-btn" data-ri="${ri}">+</button>`;
+          return `<td class="cell-storage-td" data-ri="${ri}" data-ci="${ci}">${displayValue}</td>`;
+        }
+
+        // Для колонки "Факт"
+        const faktColIdx = headers.findIndex(h => h.toLowerCase() === 'факт');
+        if (ci === faktColIdx) {
+          const dataAttrs = `data-ri="${ri}" data-ci="${ci}"`;
+          return `<td ${dataAttrs} contenteditable="true" class="editable-cell" inputmode="numeric">${escapeHtml(String(value))}</td>`;
+        }
+
+        // Для колонки "Статус"
+        const statusColIdx = headers.findIndex(h => h.toLowerCase() === 'статус');
+        if (ci === statusColIdx) {
+          const statusValue = value;
+          const cssClass = statusValue === '✓' ? 'status-ok' :
+            statusValue === '⚠' ? 'status-warn' : 'readonly-cell';
+          return `<td class="${cssClass}">${escapeHtml(String(statusValue))}</td>`;
+        }
+
+        return `<td class="readonly-cell">${escapeHtml(String(value))}</td>`;
+      }
+
+      function onCellClick(e) {
+        if (e.target.classList.contains('add-cell-btn')) {
+          const ri = Number(e.target.getAttribute('data-ri'));
+          openCellModal(ri);
+        }
+
+        table.addEventListener('click', onCellClick, { capture: false });
+      }
+
+      function openCellModal(ri) {
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0,0,0,0.7);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          z-index: 1000;
+          `;
+
+        const inner = document.createElement('div');
+        inner.className = 'modal-content';
+        inner.style.cssText = `
+          background: var(--card);
+          padding: 20px;
+          border-radius: 8px;
+          width: 400px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+          `;
+
+        inner.innerHTML = `
+          <h3>Выберите ячейку</h3>
+          <div style="margin-bottom: 10px;">
+            <label>Буква:</label>
+            <div id="letter-buttons" style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px;">
+              ${['A', 'B', 'C', 'D', 'F', 'I', 'J', 'K', 'S'].map(letter =>
+          `<button class="choice-btn" data-type="letter" data-value="${letter}">${letter}</button>`
+        ).join('')}
+            </div>
+          </div>
+
+          <div style="margin-bottom: 10px;">
+            <label>Число 1 (1-13):</label>
+            <div id="num1-buttons" style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px;">
+              ${Array.from({ length: 13 }, (_, i) => i + 1).map(n =>
+          `<button class="choice-btn" data-type="num1" data-value="${n}">${n}</button>`
+        ).join('')}
+            </div>
+          </div>
+
+          <div style="margin-bottom: 10px;">
+            <label>Число 2 (1-3):</label>
+            <div id="num2-buttons" style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px;">
+              ${[1, 2, 3].map(n =>
+          `<button class="choice-btn" data-type="num2" data-value="${n}">${n}</button>`
+        ).join('')}
+            </div>
+          </div>
+
+          <div style="margin-bottom: 15px;">
+            <label>Число 3 (1-4):</label>
+            <div id="num3-buttons" style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px;">
+              ${[1, 2, 3, 4].map(n =>
+          `<button class="choice-btn" data-type="num3" data-value="${n}">${n}</button>`
+        ).join('')}
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: space-between;">
+            <button id="closeModalBtn" style="padding: 6px 12px; background: #1f2937; border: 1px solid #374151; border-radius: 4px; cursor: pointer;">Закрыть</button>
+            <button id="addCellBtn" style="padding: 6px 12px; background: #1f2937; border: 1px solid #374151; border-radius: 4px; cursor: not-allowed; opacity: 0.5;" disabled>Добавить</button>
+          </div>
+        `;
+
+        modal.appendChild(inner);
+        document.body.appendChild(modal);
+
+        const addBtn = $('#addCellBtn');
+        const closeBtn = $('#closeModalBtn');
+        const buttons = document.querySelectorAll('.choice-btn');
+        let selected = { letter: null, num1: null, num2: null, num3: null };
+
+        buttons.forEach(btn => {
+          btn.addEventListener('click', () => {
+            const type = btn.getAttribute('data-type');
+            const value = btn.getAttribute('data-value');
+
+            // Снимаем выделение с других кнопок этого типа
+            document.querySelectorAll(`[data-type="${type}"]`).forEach(b => b.classList.remove('selected-btn'));
+
+            // Выделяем текущую
+            btn.classList.add('selected-btn');
+
+            // Обновляем выбранное значение
+            selected[type] = value;
+
+            // Проверяем, все ли значения выбраны
+            if (selected.letter && selected.num1 && selected.num2 && selected.num3) {
+              addBtn.disabled = false;
+              addBtn.style.cursor = 'pointer';
+              addBtn.style.opacity = '1';
+              // Подсвечиваем кнопку "Добавить" тем же цветом, что и выбранные кнопки
+              addBtn.style.background = '#22c55e';
+              addBtn.style.borderColor = '#22c55e';
+              addBtn.style.color = 'white';
+            } else {
+              addBtn.disabled = true;
+              addBtn.style.cursor = 'not-allowed';
+              addBtn.style.opacity = '0.5';
+              addBtn.style.background = '#1f2937';
+              addBtn.style.borderColor = '#374151';
+              addBtn.style.color = 'var(--ink)';
+            }
+          });
+        });
+
+        addBtn.onclick = () => {
+          const { letter, num1, num2, num3 } = selected;
+          if (!letter || !num1 || !num2 || !num3) {
+            alert('Заполните все поля');
+            return;
+          }
+
+          const newCell = `${letter}${num1}-${num2}-${num3}`;
+
+          // Обновляем "Ячейка хранения"
+          const cellColIdx = workbookJson.headers.findIndex(h => h.toLowerCase().includes('ячейка хранения'));
+          if (cellColIdx !== -1) {
+            let currentValue = '';
+            if (filteredRows) {
+              const filteredRow = filteredRows[ri];
+              const realRowIndex = workbookJson.rows.findIndex(row => row === filteredRow);
+              if (realRowIndex !== -1) {
+                currentValue = workbookJson.rows[realRowIndex][cellColIdx];
+                const newValue = currentValue ? `${currentValue}, ${newCell}` : newCell;
+                workbookJson.rows[realRowIndex][cellColIdx] = newValue;
+              }
+            } else {
+              currentValue = workbookJson.rows[ri][cellColIdx];
+              const newValue = currentValue ? `${currentValue}, ${newCell}` : newCell;
+              workbookJson.rows[ri][cellColIdx] = newValue;
+            }
+          }
+
+          saveToStorage(); // Сохраняем после изменения
+          // Перерисовываем таблицу, чтобы обновить отображение
+          renderTable();
+          document.body.removeChild(modal);
+        };
+
+        closeBtn.onclick = () => {
+          document.body.removeChild(modal);
+        };
+      }
+
+      function onCellEdit(e) {
+        const td = e.target.closest('td');
+        if (!td || !workbookJson) return;
+        if (td.getAttribute('contenteditable') !== 'true') return;
+
+        const ri = Number(td.getAttribute('data-ri'));
+        const ci = Number(td.getAttribute('data-ci'));
+
+        const faktColIdx = workbookJson.headers.findIndex(h => h.toLowerCase() === 'факт');
+        if (ci !== faktColIdx) return;
+
+        const newValue = td.textContent;
+
+        if (filteredRows) {
+          const filteredRow = filteredRows[ri];
+          const realRowIndex = workbookJson.rows.findIndex(row => {
+            return JSON.stringify(row) === JSON.stringify(filteredRow);
+          });
+          if (realRowIndex !== -1) {
+            workbookJson.rows[realRowIndex][ci] = newValue;
+            updateRowStatus(realRowIndex);
+          }
+        } else {
+          workbookJson.rows[ri][ci] = newValue;
+          updateRowStatus(ri);
+        }
+
+        saveToStorage(); // Сохраняем после изменения
+
+        if (e.type === 'focusout' || e.type === 'keydown' && e.key === 'Enter') {
+          e.preventDefault();
+          renderTable();
+        }
+      }
+
+      function updateRowStatus(rowIndex) {
+        if (!workbookJson) return;
+        const headers = workbookJson.headers;
+
+        const kolvoIdx = headers.findIndex(h => h.toLowerCase().includes('кол') && h.toLowerCase().includes('во'));
+        const faktIdx = headers.findIndex(h => h.toLowerCase() === 'факт');
+        const statusIdx = headers.findIndex(h => h.toLowerCase() === 'статус');
+
+        if (kolvoIdx === -1 || faktIdx === -1 || statusIdx === -1) return;
+
+        const row = workbookJson.rows[rowIndex];
+        const kolvo = parseFloat(row[kolvoIdx]) || 0;
+        const fakt = parseFloat(row[faktIdx]) || 0;
+
+        let status = '';
+        if (fakt === 0) {
+          status = '';
+        } else if (fakt === kolvo) {
+          status = '✓';
+        } else if (fakt < kolvo) {
+          status = '⚠';
+        } else {
+          status = '⚠';
+        }
+
+        row[statusIdx] = status;
+      }
+
+      function escapeHtml(s) {
+        return s.replace(/[&<>"]/g, m => ({ '&': '&amp;', '<': '<', '>': '>', '"': '&quot;' }[m]));
+      }
+
+      function searchTable() {
+        if (!workbookJson) { return; }
+        const query = searchInput.value.trim().toLowerCase();
+
+        if (!query) {
+          filteredRows = null;
+          renderTable();
+          setStatus(`Показаны все строки: ${workbookJson.rows.length}`);
+          return;
+        }
+
+        filteredRows = workbookJson.rows.filter(row => {
+          return row.some(cell => {
+            const cellText = String(cell || '').toLowerCase();
+            return cellText.includes(query);
+          });
+        });
+
+        renderTable();
+        setStatus(`Найдено строк: ${filteredRows.length} из ${workbookJson.rows.length}`);
+      }
+
+      function clearSearch() {
+        searchInput.value = '';
+        filteredRows = null;
+        renderTable();
+        if (workbookJson) {
+          setStatus(`Показаны все строки: ${workbookJson.rows.length}`);
+        }
+      }
+
+      function saveXlsx() {
+        if (!workbookJson) { setStatus('Сначала загрузите файл'); return; }
+
+        // Создаём новую структуру данных, включающую все колонки (оригинальные + новые)
+        const newAoa = [];
+
+        // Добавляем заголовки - все колонки из текущей обработанной таблицы
+        newAoa.push([...workbookJson.headers]);
+
+        // Добавляем все строки данных
+        for (let i = 0; i < workbookJson.rows.length; i++) {
+          newAoa.push([...workbookJson.rows[i]]);
+        }
+
+        // Определяем финальную структуру данных для сохранения
+        const startRow = workbookJson.headerRowIndex;
+        let finalAoa;
+
+        if (startRow > 0) {
+          // Создаём полную структуру с сохранением верхних строк
+          finalAoa = [];
+
+          // Копируем строки до заголовков из оригинала
+          for (let i = 0; i < startRow; i++) {
+            finalAoa.push([...(workbookJson.originalAoa[i] || [])]);
+          }
+
+          // Добавляем обработанные данные (заголовки + строки)
+          finalAoa.push(...newAoa);
+
+          // Если в оригинале были строки после данных, добавляем их
+          const originalDataEnd = startRow + 1 + workbookJson.rows.length;
+          for (let i = originalDataEnd; i < workbookJson.originalAoa.length; i++) {
+            if (workbookJson.originalAoa[i] && workbookJson.originalAoa[i].some(cell => String(cell || '').trim() !== '')) {
+              finalAoa.push([...(workbookJson.originalAoa[i] || [])]);
+            }
+          }
+        } else {
+          // Простой случай - данные начинаются с первой строки
+          finalAoa = newAoa;
+        }
+
+        // Создаём и сохраняем файл
+        const dt = new Date();
+        const ts = dt.getFullYear().toString() + pad(dt.getMonth() + 1) + pad(dt.getDate()) + '-' + pad(dt.getHours()) + pad(dt.getMinutes()) + pad(dt.getSeconds());
+        const filename = `processed.${ts}.xlsx`;
+
+        const ws = XLSX.utils.aoa_to_sheet(finalAoa);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, workbookJson.sheetName || 'Лист1');
+
+        XLSX.writeFile(wb, filename);
+
+        // Отладочная информация
+        const editedCells = workbookJson.rows.flat().filter(cell => String(cell || '').trim() !== '').length;
+        const totalCols = workbookJson.headers.length;
+        setStatus(`Сохранено: ${filename} (${workbookJson.rows.length} строк, ${totalCols} колонок, ${editedCells} заполненных ячеек)`);
+      }
+
+      function pad(n) { return (n < 10 ? '0' : '') + n; }
+
+      function clearTable() {
+        if (!workbookJson) {
+          setStatus('Таблица уже пуста');
+          return;
+        }
+
+        if (confirm('Вы уверены, что хотите очистить таблицу? Все данные будут потеряны.')) {
+          workbookJson = null;
+          filteredRows = null;
+          localStorage.removeItem(STORAGE_KEY); // Удаляем сохранённые данные
+          table.innerHTML = '';
+          searchInput.value = '';
+          setStatus('Таблица очищена. Загрузите Excel для начала работы');
+        }
+      }
+
+      // Events
+      fileInput.addEventListener('change', e => {
+        const f = e.target.files && e.target.files[0];
+        if (f) loadXlsx(f);
+      });
+      btnSave.addEventListener('click', saveXlsx);
+      searchInput.addEventListener('input', searchTable);
+      btnClearSearch.addEventListener('click', clearSearch);
+      btnClearTable.addEventListener('click', clearTable);
+    })();
+  </script>
+</body>
+
+</html>
