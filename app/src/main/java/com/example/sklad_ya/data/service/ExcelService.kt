@@ -235,19 +235,44 @@ class ExcelServiceImpl : ExcelService {
 
     override fun createProductFromRow(rowData: List<String>, rowIndex: Int, headers: List<String>): Product {
         // Маппим колонки на основе реальной структуры файла
+        val article = getColumnValue(rowData, headers, "артикул")
+        val name = getColumnValue(rowData, headers, "товар", "наименование", "название", "работы", "услуги")
+        val barcode = getColumnValue(rowData, headers, "штрихкод", "штрих")
+        val requiredQuantity = getColumnValue(rowData, headers, "кол-во", "количество", "колво").toDoubleOrNull() ?: 0.0
+        val actualQuantity = getColumnValue(rowData, headers, "остаток").toDoubleOrNull() ?: 0.0
+        val unit = getColumnValue(rowData, headers, "ед.", "ед", "единица")
+        val storageCellsStr = getColumnValue(rowData, headers, "ячейка", "хранение")
+
+        // Парсим ячейки хранения (могут быть через запятую)
+        val storageCells = if (storageCellsStr.isNotBlank()) {
+            storageCellsStr.split(",").map { it.trim() }.filter { it.isNotBlank() }
+                .mapNotNull { StorageCell.fromString(it) }
+        } else {
+            emptyList()
+        }
+
         val product = Product(
-            article = getColumnValue(rowData, headers, "артикул"),
-            name = getColumnValue(rowData, headers, "товар", "наименование", "название"),
-            barcode = getColumnValue(rowData, headers, "штрихкод", "штрих"),
-            requiredQuantity = getColumnValue(rowData, headers, "кол-во", "количество").toDoubleOrNull() ?: 0.0,
-            unit = getColumnValue(rowData, headers, "ед.", "ед", "единица"),
+            article = article,
+            name = name,
+            barcode = barcode,
+            requiredQuantity = requiredQuantity,
+            actualQuantity = actualQuantity, // Используем данные из колонки "Остаток"
+            unit = unit,
             price = 0.0, // Цена не указана в структуре
-            rowIndex = rowIndex
+            rowIndex = rowIndex,
+            storageCells = storageCells
         )
 
         // Определяем статус на основе данных
         val status = when {
-            product.requiredQuantity > 0 -> ProductStatus.PENDING
+            product.requiredQuantity > 0 && product.actualQuantity > 0 -> {
+                if (product.requiredQuantity == product.actualQuantity) {
+                    ProductStatus.MATCH // ✓ Совпадает
+                } else {
+                    ProductStatus.MISMATCH // ⚠ Не совпадает
+                }
+            }
+            product.requiredQuantity > 0 -> ProductStatus.PENDING // Ожидает
             else -> ProductStatus.PENDING
         }
 
@@ -288,10 +313,11 @@ class ExcelServiceImpl : ExcelService {
         // Отладочная информация
         println("DEBUG: Анализируем ${rows.size} строк")
 
-        // Стратегия: Ищем строку с ключевыми словами заголовков
-        for (i in 0 until minOf(rows.size, 100)) {
+        // Стратегия 1: Ищем строку с ключевыми словами заголовков
+        // Проверяем все строки файла, а не только первые 200
+        for (i in 0 until rows.size) {
             val row = rows[i]
-            var keywordMatches = 0
+            var keywordMatches = 0.0
             var totalKeywords = 0
             val foundKeywords = mutableListOf<String>()
 
@@ -304,30 +330,88 @@ class ExcelServiceImpl : ExcelService {
                 val lowerCell = cell.lowercase()
                 totalKeywords++
 
-                // Подсчитываем ключевые слова
+                // Подсчитываем ключевые слова (расширенный список для сложных файлов)
                 when {
-                    lowerCell == "№" || lowerCell == "номер" -> { keywordMatches++; foundKeywords.add("№") }
-                    lowerCell.contains("артикул") -> { keywordMatches++; foundKeywords.add("артикул") }
-                    lowerCell.contains("товар") || lowerCell.contains("наименование") -> { keywordMatches++; foundKeywords.add("товар") }
-                    lowerCell.contains("кол-во") || lowerCell.contains("количество") -> { keywordMatches++; foundKeywords.add("кол-во") }
-                    lowerCell == "ед." || lowerCell.contains("единица") -> { keywordMatches++; foundKeywords.add("ед.") }
-                    lowerCell.contains("штрих") || lowerCell.contains("штрихкод") -> { keywordMatches++; foundKeywords.add("штрихкод") }
-                    lowerCell.contains("ячейка") || lowerCell.contains("хранение") -> { keywordMatches++; foundKeywords.add("ячейка") }
-                    lowerCell.contains("остаток") -> { keywordMatches++; foundKeywords.add("остаток") }
+                    lowerCell == "№" || lowerCell == "номер" -> { keywordMatches += 1.5; foundKeywords.add("№") }
+                    lowerCell.contains("артикул") -> { keywordMatches += 1.5; foundKeywords.add("артикул") }
+                    lowerCell.contains("товар") || lowerCell.contains("наименование") || lowerCell.contains("работы") || lowerCell.contains("услуги") -> { keywordMatches += 1.5; foundKeywords.add("товар") }
+                    lowerCell.contains("кол-во") || lowerCell.contains("количество") || lowerCell.contains("колво") -> { keywordMatches += 1.5; foundKeywords.add("кол-во") }
+                    lowerCell == "ед." || lowerCell.contains("единица") || lowerCell.contains("ед") -> { keywordMatches += 1.0; foundKeywords.add("ед.") }
+                    lowerCell.contains("штрих") || lowerCell.contains("штрихкод") -> { keywordMatches += 1.0; foundKeywords.add("штрихкод") }
+                    lowerCell.contains("ячейка") || lowerCell.contains("хранение") -> { keywordMatches += 1.0; foundKeywords.add("ячейка") }
+                    lowerCell.contains("остаток") -> { keywordMatches += 1.0; foundKeywords.add("остаток") }
+                    // Дополнительные ключевые слова для сложных файлов
+                    lowerCell.contains("поступление") -> { keywordMatches += 0.3; foundKeywords.add("поступление") }
+                    // Ищем числовые паттерны в первых колонках
+                    lowerCell.matches(Regex("\\d+")) && j == 0 -> { keywordMatches += 0.8; foundKeywords.add("номер") }
                 }
             }
 
             println("DEBUG: Строка $i - найдено ключевых слов: $keywordMatches из $totalKeywords, слова: ${foundKeywords.joinToString()}")
 
-            // Если нашли строку с достаточным количеством ключевых слов (>= 2)
-            if (keywordMatches >= 2) {
+            // Если нашли строку с достаточным количеством ключевых слов (>= 2.0)
+            // Увеличиваем порог для более точного распознавания
+            if (keywordMatches >= 2.0) {
                 println("DEBUG: НАЙДЕНЫ ЗАГОЛОВКИ в строке $i!")
                 return processTableStructure(rows, i)
             }
         }
 
-        println("DEBUG: Заголовки не найдены в первых 100 строках")
+        // Стратегия 2: Если не нашли заголовки, ищем табличную структуру по другим признакам
+        // Ищем строки где первая колонка содержит числа, а остальные колонки заполнены
+        for (i in 0 until rows.size) {
+            val row = rows[i]
+
+            // Пропускаем явно служебные строки
+            if (row.isEmpty() || row.all { it.isBlank() }) continue
+
+            val firstCell = row.firstOrNull()?.trim() ?: ""
+            if (firstCell.isBlank()) continue
+
+            // Проверяем, является ли первая колонка числом
+            val isNumber = firstCell.matches(Regex("\\d+"))
+
+            // Проверяем, есть ли в строке ключевые слова или артикулы
+            val hasProductKeywords = row.any { cell ->
+                val lower = cell.lowercase()
+                lower.contains("valmo") || lower.matches(Regex("арт\\d+"))
+            }
+
+            // Проверяем, что строка имеет достаточную длину (минимум 3 колонки)
+            if (isNumber && row.size >= 3 && hasProductKeywords) {
+                println("DEBUG: Найдена потенциальная строка данных в позиции $i: $firstCell")
+                // Ищем заголовки выше этой строки
+                for (j in (i - 20).coerceAtLeast(0) until i) {
+                    val headerRow = rows[j]
+                    val headerMatches = countHeaderKeywords(headerRow)
+                    if (headerMatches >= 1.5) {
+                        println("DEBUG: Найдены заголовки выше данных в строке $j!")
+                        return processTableStructure(rows, j)
+                    }
+                }
+            }
+        }
+
+        println("DEBUG: Заголовки не найдены во всем файле")
         return null
+    }
+
+    private fun countHeaderKeywords(row: List<String>): Double {
+        var matches = 0.0
+        for (cell in row) {
+            val lower = cell.lowercase()
+            when {
+                lower == "№" || lower == "номер" -> matches += 1.5
+                lower.contains("артикул") -> matches += 1.5
+                lower.contains("товар") || lower.contains("наименование") -> matches += 1.5
+                lower.contains("кол-во") || lower.contains("количество") -> matches += 1.5
+                lower == "ед." || lower.contains("единица") -> matches += 1.0
+                lower.contains("штрих") || lower.contains("штрихкод") -> matches += 1.0
+                lower.contains("ячейка") || lower.contains("хранение") -> matches += 1.0
+                lower.contains("остаток") -> matches += 1.0
+            }
+        }
+        return matches
     }
 
     private fun processTableStructure(rows: List<List<String>>, headerRowIndex: Int): TableAnalysisResult? {
@@ -367,7 +451,8 @@ class ExcelServiceImpl : ExcelService {
 
             // Проверяем, что первая колонка содержит число или артикул
             if (firstCell.isNotBlank() && !firstCell.matches(Regex("\\d+")) &&
-                !firstCell.matches(Regex("[A-Za-z].*"))) {
+                !firstCell.matches(Regex("[A-Za-z].*")) &&
+                !firstCell.matches(Regex("VALMO\\d+"))) { // Добавляем поддержку артикулов VALMO
                 println("DEBUG: Отфильтрована строка с некорректной первой колонкой: $firstCell")
                 return@filter false
             }
