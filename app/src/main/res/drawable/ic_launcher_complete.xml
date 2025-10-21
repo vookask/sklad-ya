@@ -3,15 +3,10 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-  <!-- Зеленый квадрат -->
+  <!-- Зеленый круг для лучшей производительности -->
   <path android:fillColor="#22c55e"
-        android:pathData="M1,1 L15,1 L15,15 L1,15 Z"/>
-  <!-- Белая буква S в центре -->
-  <text android:fillColor="#FFFFFF"
-        android:text="S"
-        android:textSize="48px"
-        android:textStyle="bold"
-        android:fontFamily="sans-serif"
-        android:layout_gravity="center"
-        android:gravity="center"/>
+        android:pathData="M54,54 m-35,0 a35,35 0 1,0 70,0 a35,35 0 1,0 -70,0"/>
+  <!-- Простая белая буква S -->
+  <path android:fillColor="#FFFFFF"
+        android:pathData="M45,35 L63,35 L63,40 L50,40 L50,45 L58,45 L58,50 L50,50 L50,68 L45,68 Z"/>
 </vector>

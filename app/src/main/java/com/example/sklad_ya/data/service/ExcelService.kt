@@ -60,7 +60,11 @@ interface ExcelService {
 class ExcelServiceImpl : ExcelService {
 
     override suspend fun loadExcelData(context: Context, filePath: String): Result<ExcelData> {
+        val startTime = System.currentTimeMillis()
+        android.util.Log.d("EXCEL_PERFORMANCE", "Начало загрузки Excel файла: $filePath")
+
         return try {
+
             withContext(Dispatchers.IO) {
                 // Открываем Excel файл с помощью Apache POI
                 FileInputStream(filePath).use { fis ->
@@ -97,10 +101,16 @@ class ExcelServiceImpl : ExcelService {
                     )
 
                     workbook.close()
+                    val endTime = System.currentTimeMillis()
+                    val loadTime = endTime - startTime
+                    android.util.Log.d("EXCEL_PERFORMANCE", "Excel файл загружен за $loadTime мс, найдено продуктов: ${excelData.products.size}")
                     Result.success(excelData)
                 }
             }
         } catch (e: Exception) {
+            val endTime = System.currentTimeMillis()
+            val loadTime = endTime - startTime
+            android.util.Log.e("EXCEL_PERFORMANCE", "Ошибка загрузки Excel файла за $loadTime мс: ${e.message}")
             Result.failure(Exception("Ошибка при чтении Excel файла: ${e.message}"))
         }
     }
@@ -236,12 +246,13 @@ class ExcelServiceImpl : ExcelService {
     override fun createProductFromRow(rowData: List<String>, rowIndex: Int, headers: List<String>): Product {
         // Маппим колонки на основе реальной структуры файла
         val article = getColumnValue(rowData, headers, "артикул")
-        val name = getColumnValue(rowData, headers, "товар", "наименование", "название", "работы", "услуги")
+        val name = getColumnValue(rowData, headers, "товар", "наименование", "название", "работы", "услуги", "наименование товара")
         val barcode = getColumnValue(rowData, headers, "штрихкод", "штрих")
         val requiredQuantity = getColumnValue(rowData, headers, "кол-во", "количество", "колво").toDoubleOrNull() ?: 0.0
-        val actualQuantity = getColumnValue(rowData, headers, "остаток").toDoubleOrNull() ?: 0.0
-        val unit = getColumnValue(rowData, headers, "ед.", "ед", "единица")
-        val storageCellsStr = getColumnValue(rowData, headers, "ячейка", "хранение")
+        // Факт всегда пустой при загрузке - заполняется в приложении
+        val actualQuantity = 0.0
+        val unit = getColumnValue(rowData, headers, "ед.", "ед", "единица", "ед.изм")
+        val storageCellsStr = getColumnValue(rowData, headers, "ячейка", "хранение", "ячейки", "место хранения")
 
         // Парсим ячейки хранения (могут быть через запятую)
         val storageCells = if (storageCellsStr.isNotBlank()) {
@@ -319,11 +330,21 @@ class ExcelServiceImpl : ExcelService {
     }
 
     private fun findTableDataFromRows(rows: List<List<String>>): TableAnalysisResult? {
-        // Стратегия 1: Ищем табличные данные с конца файла (ближе к концу часто находятся основные данные)
+        val startTime = System.currentTimeMillis()
+        android.util.Log.d("EXCEL_PERFORMANCE", "Начало анализа ${rows.size} строк данных")
+
+        // Оптимизированная стратегия: Ищем табличные данные более эффективно
         val searchStartIndex = maxOf(0, rows.size - 100) // Начинаем поиск с последних 100 строк
 
-        for (i in searchStartIndex until rows.size) {
-            val row = rows[i]
+        // Предварительная фильтрация строк для ускорения поиска
+        val candidateRows = rows.mapIndexed { index, row ->
+            val firstCell = row.firstOrNull()?.trim() ?: ""
+            val isService = isServiceRow(firstCell) || firstCell.lowercase().contains("итого") || firstCell.lowercase().contains("всего")
+            val hasContent = row.size >= 2 && row.any { it.isNotBlank() }
+            if (isService || !hasContent) null else Pair(index, row)
+        }.filterNotNull()
+
+        for ((i, row) in candidateRows.filter { it.first >= searchStartIndex }) {
             var keywordMatches = 0.0
 
             for (j in 0 until minOf(row.size, 20)) {
@@ -352,12 +373,7 @@ class ExcelServiceImpl : ExcelService {
         }
 
         // Стратегия 2: Если не нашли в конце, ищем по всему файлу с более мягкими критериями
-        for (i in 0 until rows.size) {
-            val row = rows[i]
-
-            // Пропускаем явно служебные строки с метаданными
-            val firstCell = row.firstOrNull()?.trim() ?: ""
-            if (isServiceRow(firstCell)) continue
+        for ((i, row) in candidateRows.filter { it.first < searchStartIndex }) {
 
             var keywordMatches = 0.0
 
@@ -383,14 +399,8 @@ class ExcelServiceImpl : ExcelService {
 
         // Стратегия 3: Если не нашли заголовки, ищем табличную структуру по другим признакам
         // Ищем строки где первая колонка содержит числа, а остальные колонки заполнены
-        for (i in 0 until rows.size) {
-            val row = rows[i]
-
-            // Пропускаем явно служебные строки
-            if (row.isEmpty() || row.all { it.isBlank() }) continue
-
+        for ((i, row) in candidateRows) {
             val firstCell = row.firstOrNull()?.trim() ?: ""
-            if (firstCell.isBlank()) continue
 
             // Проверяем, является ли первая колонка числом
             val isNumber = firstCell.matches(Regex("\\d+"))
@@ -403,9 +413,8 @@ class ExcelServiceImpl : ExcelService {
 
             // Проверяем, что строка имеет достаточную длину (минимум 3 колонки)
             if (isNumber && row.size >= 3 && hasProductKeywords) {
-                // Ищем заголовки выше этой строки
-                for (j in (i - 20).coerceAtLeast(0) until i) {
-                    val headerRow = rows[j]
+                // Ищем заголовки выше этой строки только среди кандидатов
+                for ((j, headerRow) in candidateRows.filter { it.first in (i - 20).coerceAtLeast(0) until i }) {
                     val headerMatches = countHeaderKeywords(headerRow)
                     if (headerMatches >= 1.5) {
                         return processTableStructure(rows, j)
@@ -414,6 +423,9 @@ class ExcelServiceImpl : ExcelService {
             }
         }
 
+        val endTime = System.currentTimeMillis()
+        val analysisTime = endTime - startTime
+        android.util.Log.d("EXCEL_PERFORMANCE", "Анализ данных завершен за $analysisTime мс")
         return null
     }
 
@@ -492,7 +504,7 @@ class ExcelServiceImpl : ExcelService {
             true
         }
 
-        // Добавляем колонки "Факт" и "Статус" после "Кол-во"
+        // Добавляем колонки "Факт", "Статус" и "Остаток из файла" после "Кол-во"
         val kolvoColIdx = headers.indexOfFirst { h ->
             h.lowercase().contains("кол") && (h.lowercase().contains("во") || h.lowercase().contains("ичество"))
         }
@@ -501,12 +513,24 @@ class ExcelServiceImpl : ExcelService {
             val newHeaders = ArrayList(headers)
             newHeaders.add(insertIdx, "Факт")
             newHeaders.add(insertIdx + 1, "Статус")
+            newHeaders.add(insertIdx + 2, "Остаток из файла")
             headers = newHeaders
 
-            val newFilteredRows = filteredRows.map { row ->
+            val newFilteredRows = filteredRows.mapIndexed { filteredIndex, row ->
                 val newRow = ArrayList(row)
-                newRow.add(insertIdx, "")
-                newRow.add(insertIdx + 1, "")
+                newRow.add(insertIdx, "") // Факт - пустой
+                newRow.add(insertIdx + 1, "") // Статус - пустой
+
+                // Остаток из файла добавляем из оригинальной строки данных
+                val originalRowIndex = headerRowIndex + 1 + filteredIndex
+                if (originalRowIndex < rows.size) {
+                    val originalRow = rows[originalRowIndex]
+                    val fileRemainder = getColumnValue(originalRow, headers, "остаток")
+                    newRow.add(insertIdx + 2, fileRemainder) // Остаток из файла
+                } else {
+                    newRow.add(insertIdx + 2, "") // Остаток из файла
+                }
+
                 newRow
             }
             filteredRows = newFilteredRows

@@ -15,6 +15,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val startTime = System.currentTimeMillis()
+        android.util.Log.d("APP_PERFORMANCE", "Начало загрузки MainActivity")
+
         enableEdgeToEdge()
         setContent {
             Sklad_yaTheme(darkTheme = true) {
@@ -26,5 +29,9 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+
+        val endTime = System.currentTimeMillis()
+        val loadTime = endTime - startTime
+        android.util.Log.d("APP_PERFORMANCE", "MainActivity загружено за $loadTime мс")
     }
 }
