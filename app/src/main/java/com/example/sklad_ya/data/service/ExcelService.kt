@@ -297,67 +297,91 @@ class ExcelServiceImpl : ExcelService {
     }
 
     private fun getColumnValue(rowData: List<String>, headers: List<String>, vararg columnNames: String): String {
+        // Для более точного поиска используем exact match сначала
         columnNames.forEach { columnName ->
-            val columnIndex = headers.indexOfFirst { header ->
+            val exactMatchIndex = headers.indexOfFirst { header ->
+                header.trim().lowercase() == columnName.lowercase()
+            }
+            if (exactMatchIndex >= 0 && exactMatchIndex < rowData.size) {
+                return rowData[exactMatchIndex]
+            }
+
+            // Если точное совпадение не найдено, ищем по частичному совпадению
+            val partialMatchIndex = headers.indexOfFirst { header ->
                 header.lowercase().contains(columnName.lowercase()) ||
                 columnName.lowercase().contains(header.lowercase())
             }
-            if (columnIndex >= 0 && columnIndex < rowData.size) {
-                return rowData[columnIndex]
+            if (partialMatchIndex >= 0 && partialMatchIndex < rowData.size) {
+                return rowData[partialMatchIndex]
             }
         }
         return ""
     }
 
     private fun findTableDataFromRows(rows: List<List<String>>): TableAnalysisResult? {
-        // Отладочная информация
-        println("DEBUG: Анализируем ${rows.size} строк")
+        // Стратегия 1: Ищем табличные данные с конца файла (ближе к концу часто находятся основные данные)
+        val searchStartIndex = maxOf(0, rows.size - 100) // Начинаем поиск с последних 100 строк
 
-        // Стратегия 1: Ищем строку с ключевыми словами заголовков
-        // Проверяем все строки файла, а не только первые 200
-        for (i in 0 until rows.size) {
+        for (i in searchStartIndex until rows.size) {
             val row = rows[i]
             var keywordMatches = 0.0
-            var totalKeywords = 0
-            val foundKeywords = mutableListOf<String>()
-
-            println("DEBUG: Проверяем строку $i: ${row.joinToString(" | ")}")
 
             for (j in 0 until minOf(row.size, 20)) {
                 val cell = row[j].trim()
                 if (cell.isBlank()) continue
 
                 val lowerCell = cell.lowercase()
-                totalKeywords++
 
-                // Подсчитываем ключевые слова (расширенный список для сложных файлов)
+                // Подсчитываем ключевые слова для табличных заголовков
                 when {
-                    lowerCell == "№" || lowerCell == "номер" -> { keywordMatches += 1.5; foundKeywords.add("№") }
-                    lowerCell.contains("артикул") -> { keywordMatches += 1.5; foundKeywords.add("артикул") }
-                    lowerCell.contains("товар") || lowerCell.contains("наименование") || lowerCell.contains("работы") || lowerCell.contains("услуги") -> { keywordMatches += 1.5; foundKeywords.add("товар") }
-                    lowerCell.contains("кол-во") || lowerCell.contains("количество") || lowerCell.contains("колво") -> { keywordMatches += 1.5; foundKeywords.add("кол-во") }
-                    lowerCell == "ед." || lowerCell.contains("единица") || lowerCell.contains("ед") -> { keywordMatches += 1.0; foundKeywords.add("ед.") }
-                    lowerCell.contains("штрих") || lowerCell.contains("штрихкод") -> { keywordMatches += 1.0; foundKeywords.add("штрихкод") }
-                    lowerCell.contains("ячейка") || lowerCell.contains("хранение") -> { keywordMatches += 1.0; foundKeywords.add("ячейка") }
-                    lowerCell.contains("остаток") -> { keywordMatches += 1.0; foundKeywords.add("остаток") }
-                    // Дополнительные ключевые слова для сложных файлов
-                    lowerCell.contains("поступление") -> { keywordMatches += 0.3; foundKeywords.add("поступление") }
-                    // Ищем числовые паттерны в первых колонках
-                    lowerCell.matches(Regex("\\d+")) && j == 0 -> { keywordMatches += 0.8; foundKeywords.add("номер") }
+                    lowerCell == "№" || lowerCell == "номер" -> keywordMatches += 2.0
+                    lowerCell.contains("артикул") -> keywordMatches += 2.0
+                    lowerCell.contains("товар") || lowerCell.contains("наименование") || lowerCell.contains("работы") || lowerCell.contains("услуги") -> keywordMatches += 2.0
+                    lowerCell.contains("кол-во") || lowerCell.contains("количество") || lowerCell.contains("колво") -> keywordMatches += 2.0
+                    lowerCell == "ед." || lowerCell.contains("единица") || lowerCell.contains("ед") -> keywordMatches += 1.5
+                    lowerCell.contains("штрих") || lowerCell.contains("штрихкод") -> keywordMatches += 1.5
+                    lowerCell.contains("ячейка") || lowerCell.contains("хранение") -> keywordMatches += 1.5
+                    lowerCell.contains("остаток") -> keywordMatches += 1.5
                 }
             }
 
-            println("DEBUG: Строка $i - найдено ключевых слов: $keywordMatches из $totalKeywords, слова: ${foundKeywords.joinToString()}")
-
-            // Если нашли строку с достаточным количеством ключевых слов (>= 2.0)
-            // Увеличиваем порог для более точного распознавания
-            if (keywordMatches >= 2.0) {
-                println("DEBUG: НАЙДЕНЫ ЗАГОЛОВКИ в строке $i!")
+            // Если нашли строку с высоким рейтингом ключевых слов (>= 3.0)
+            if (keywordMatches >= 3.0) {
                 return processTableStructure(rows, i)
             }
         }
 
-        // Стратегия 2: Если не нашли заголовки, ищем табличную структуру по другим признакам
+        // Стратегия 2: Если не нашли в конце, ищем по всему файлу с более мягкими критериями
+        for (i in 0 until rows.size) {
+            val row = rows[i]
+
+            // Пропускаем явно служебные строки с метаданными
+            val firstCell = row.firstOrNull()?.trim() ?: ""
+            if (isServiceRow(firstCell)) continue
+
+            var keywordMatches = 0.0
+
+            for (j in 0 until minOf(row.size, 20)) {
+                val cell = row[j].trim()
+                if (cell.isBlank()) continue
+
+                val lowerCell = cell.lowercase()
+
+                // Ищем ключевые слова табличных заголовков
+                when {
+                    lowerCell == "№" -> keywordMatches += 2.0
+                    lowerCell.contains("артикул") -> keywordMatches += 2.0
+                    lowerCell.contains("товар") || lowerCell.contains("наименование") -> keywordMatches += 2.0
+                    lowerCell.contains("кол-во") || lowerCell.contains("количество") -> keywordMatches += 2.0
+                }
+            }
+
+            if (keywordMatches >= 2.5) {
+                return processTableStructure(rows, i)
+            }
+        }
+
+        // Стратегия 3: Если не нашли заголовки, ищем табличную структуру по другим признакам
         // Ищем строки где первая колонка содержит числа, а остальные колонки заполнены
         for (i in 0 until rows.size) {
             val row = rows[i]
@@ -379,21 +403,43 @@ class ExcelServiceImpl : ExcelService {
 
             // Проверяем, что строка имеет достаточную длину (минимум 3 колонки)
             if (isNumber && row.size >= 3 && hasProductKeywords) {
-                println("DEBUG: Найдена потенциальная строка данных в позиции $i: $firstCell")
                 // Ищем заголовки выше этой строки
                 for (j in (i - 20).coerceAtLeast(0) until i) {
                     val headerRow = rows[j]
                     val headerMatches = countHeaderKeywords(headerRow)
                     if (headerMatches >= 1.5) {
-                        println("DEBUG: Найдены заголовки выше данных в строке $j!")
                         return processTableStructure(rows, j)
                     }
                 }
             }
         }
 
-        println("DEBUG: Заголовки не найдены во всем файле")
         return null
+    }
+
+    private fun isServiceRow(firstCell: String): Boolean {
+        val lower = firstCell.lowercase()
+        return lower.contains("поступление товаров") ||
+               lower.contains("исполнитель") ||
+               lower.contains("заказчик") ||
+               lower.contains("поставщик") ||
+               lower.contains("получатель") ||
+               lower.contains("отпуск") ||
+               lower.contains("груз") ||
+               lower.contains("договор") ||
+               lower.contains("руководитель") ||
+               lower.contains("подпись") ||
+               lower.contains("ооо") ||
+               lower.contains("инн") ||
+               lower.contains("кпп") ||
+               lower.contains("телефон") ||
+               lower.contains("адрес") ||
+               lower.contains("москва") ||
+               lower.contains("суздальская") ||
+               lower.contains("шакман") ||
+               lower.contains("рустрак") ||
+               firstCell.matches(Regex("\\d{4}-\\d{2}-\\d{2}")) || // даты формата YYYY-MM-DD
+               firstCell.matches(Regex("\\d{1,2}\\s+[а-яё]+\\s+\\d{4}")) // даты формата "26 сентября 2025"
     }
 
     private fun countHeaderKeywords(row: List<String>): Double {
@@ -418,34 +464,21 @@ class ExcelServiceImpl : ExcelService {
         var headers = rows[headerRowIndex].map { it.trim() }
         var dataRows = rows.drop(headerRowIndex + 1)
 
-        println("DEBUG: Найдены заголовки в строке $headerRowIndex: ${headers.joinToString(" | ")}")
-        println("DEBUG: Найдено ${dataRows.size} строк данных для анализа")
-
         // Фильтруем пустые строки и служебные записи
         var filteredRows = dataRows.filter { row ->
             val hasData = row.any { it.isNotBlank() }
             if (!hasData) {
-                println("DEBUG: Отфильтрована пустая строка")
                 return@filter false
             }
 
             val firstCell = row.firstOrNull()?.trim() ?: ""
 
-            // Исключаем служебные строки
-            val isServiceRow = firstCell.lowercase().contains("итого") ||
-                firstCell.lowercase().contains("всего") ||
-                firstCell.lowercase().contains("подпись") ||
-                firstCell.lowercase().contains("исполнитель") ||
-                firstCell.lowercase().contains("руководитель") ||
-                firstCell.lowercase().contains("заказчик") ||
-                firstCell.lowercase().contains("поставщик") ||
-                firstCell.lowercase().contains("договор") ||
-                firstCell.lowercase().contains("получатель") ||
-                firstCell.lowercase().contains("отпуск") ||
-                firstCell.lowercase().contains("груз")
+            // Исключаем служебные строки с помощью улучшенной функции
+            val isServiceRow = isServiceRow(firstCell) ||
+                firstCell.lowercase().contains("итого") ||
+                firstCell.lowercase().contains("всего")
 
             if (isServiceRow) {
-                println("DEBUG: Отфильтрована служебная строка: $firstCell")
                 return@filter false
             }
 
@@ -453,15 +486,11 @@ class ExcelServiceImpl : ExcelService {
             if (firstCell.isNotBlank() && !firstCell.matches(Regex("\\d+")) &&
                 !firstCell.matches(Regex("[A-Za-z].*")) &&
                 !firstCell.matches(Regex("VALMO\\d+"))) { // Добавляем поддержку артикулов VALMO
-                println("DEBUG: Отфильтрована строка с некорректной первой колонкой: $firstCell")
                 return@filter false
             }
 
-            println("DEBUG: Принята строка данных: $firstCell")
             true
         }
-
-        println("DEBUG: После фильтрации осталось ${filteredRows.size} строк данных")
 
         // Добавляем колонки "Факт" и "Статус" после "Кол-во"
         val kolvoColIdx = headers.indexOfFirst { h ->
@@ -481,12 +510,7 @@ class ExcelServiceImpl : ExcelService {
                 newRow
             }
             filteredRows = newFilteredRows
-
-            println("DEBUG: Добавлены колонки Факт и Статус после позиции $kolvoColIdx")
         }
-
-        println("DEBUG: Финальные заголовки: ${headers.joinToString(" | ")}")
-        println("DEBUG: Финальное количество строк данных: ${filteredRows.size}")
 
         return TableAnalysisResult(
             headerRowIndex = headerRowIndex,
