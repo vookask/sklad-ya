@@ -114,23 +114,18 @@ fun MainScreen(
                         .padding(16.dp)
                 )
 
-                // Сообщение о статусе
-                StatusMessage(
-                    fileLoadState = fileLoadState,
-                    productCount = filteredProducts.size,
-                    totalCount = products.size,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                )
+                // Убираем блок служебной информации
 
                 // Таблица товаров
                 Box(modifier = Modifier.weight(1f)) {
                     when {
                         fileLoadState is com.example.sklad_ya.data.model.FileLoadState.Loading -> {
-                            CircularProgressIndicator(
-                                modifier = Modifier.align(Alignment.Center)
-                            )
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator()
+                            }
                         }
                         filteredProducts.isEmpty() && searchQuery.isEmpty() -> {
                             // Пустое состояние

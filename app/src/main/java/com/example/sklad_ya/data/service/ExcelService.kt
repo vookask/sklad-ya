@@ -87,7 +87,13 @@ class ExcelServiceImpl : ExcelService {
                     if (tableAnalysis.rows.isEmpty()) {
                         return@withContext Result.failure(Exception("В файле не найдены строки с данными."))
                     }
-
+            
+                    // Логируем найденные заголовки для диагностики
+                    android.util.Log.d("EXCEL_DEBUG", "Найденные заголовки таблицы: ${tableAnalysis.headers}")
+                    android.util.Log.d("EXCEL_DEBUG", "Количество строк данных: ${tableAnalysis.rows.size}")
+            
+                    // Вызываем отладочную функцию для проверки столбцов
+                    debugExcelColumns()
                     // Создаем продукты на основе данных
                     val products = tableAnalysis.rows.mapIndexed { index, row ->
                         createProductFromRow(row, index, tableAnalysis.headers)
@@ -236,42 +242,130 @@ class ExcelServiceImpl : ExcelService {
             }
         }
 
+        android.util.Log.d("EXCEL_DEBUG", "Прочитано ${rows.size} строк из листа '${sheet.sheetName}'")
+        if (rows.isNotEmpty()) {
+            android.util.Log.d("EXCEL_DEBUG", "Примеры строк:")
+            rows.take(5).forEachIndexed { index, row ->
+                android.util.Log.d("EXCEL_DEBUG", "Строка $index: $row")
+            }
+        }
+
         if (rows.isEmpty()) return null
 
         // Анализируем заголовки (используем логику из оригинального HTML)
         val tableData = findTableDataFromRows(rows)
+        android.util.Log.d("EXCEL_DEBUG", "Результат анализа таблицы: ${tableData?.let { "найдено, заголовки: ${it.headers}" } ?: "не найдено"}")
         return tableData
     }
 
     override fun createProductFromRow(rowData: List<String>, rowIndex: Int, headers: List<String>): Product {
+        android.util.Log.d("EXCEL_DEBUG", "Обработка строки $rowIndex: данные=${rowData}, заголовки=${headers}")
+
         // Маппим колонки на основе реальной структуры файла
         val article = getColumnValue(rowData, headers, "артикул")
         val name = getColumnValue(rowData, headers, "товар", "наименование", "название", "работы", "услуги", "наименование товара")
+
+        // ДОПОЛНИТЕЛЬНАЯ ЛОГИКА: Если имя товара не найдено, попробуем поискать в других колонках
+        var finalName = name
+        if (finalName.isBlank()) {
+            android.util.Log.d("EXCEL_DEBUG", "Имя товара не найдено стандартным способом, пробуем альтернативные варианты")
+
+            // Пробуем найти колонку с самым длинным текстом (вероятно наименование товара)
+            for (i in headers.indices) {
+                if (i < rowData.size) {
+                    val cellValue = rowData[i].trim()
+                    val headerValue = headers[i].trim().lowercase()
+
+                    // Пропускаем колонки с артикулами, количествами, штрихкодами и т.д.
+                    if (!headerValue.contains("артикул") &&
+                        !headerValue.contains("кол") &&
+                        !headerValue.contains("штрих") &&
+                        !headerValue.contains("ед") &&
+                        !headerValue.contains("ячейк") &&
+                        !headerValue.contains("остат") &&
+                        cellValue.length > 5 &&
+                        !cellValue.matches(Regex("\\d+")) &&
+                        !cellValue.matches(Regex("VALMO\\d+"))) {
+
+                        android.util.Log.d("EXCEL_DEBUG", "Найдена потенциальная колонка с товаром: '${headers[i]}' = '$cellValue'")
+                        if (cellValue.length > finalName.length) {
+                            finalName = cellValue
+                            android.util.Log.d("EXCEL_DEBUG", "Выбрана колонка '${headers[i]}' как имя товара: '$finalName'")
+                        }
+                    }
+                }
+            }
+        }
+
         val barcode = getColumnValue(rowData, headers, "штрихкод", "штрих")
         val requiredQuantity = getColumnValue(rowData, headers, "кол-во", "количество", "колво").toDoubleOrNull() ?: 0.0
         // Факт всегда пустой при загрузке - заполняется в приложении
         val actualQuantity = 0.0
         val unit = getColumnValue(rowData, headers, "ед.", "ед", "единица", "ед.изм")
         val storageCellsStr = getColumnValue(rowData, headers, "ячейка", "хранение", "ячейки", "место хранения")
+        val fileStockQuantity = getColumnValue(rowData, headers, "остаток", "остатки").toDoubleOrNull() ?: 0.0
+
+        android.util.Log.d("EXCEL_DEBUG", "Извлечённые данные: артикул='$article', товар='$finalName', кол-во='$requiredQuantity', ячейки='$storageCellsStr', остаток='$fileStockQuantity'")
 
         // Парсим ячейки хранения (могут быть через запятую)
-        val storageCells = if (storageCellsStr.isNotBlank()) {
+        var storageCells = if (storageCellsStr.isNotBlank()) {
             storageCellsStr.split(",").map { it.trim() }.filter { it.isNotBlank() }
                 .mapNotNull { StorageCell.fromString(it) }
         } else {
             emptyList()
         }
 
+        // ДОПОЛНИТЕЛЬНАЯ ЛОГИКА: Если ячейки хранения не найдены, попробуем поискать в других колонках
+        if (storageCells.isEmpty()) {
+            android.util.Log.d("EXCEL_DEBUG", "Ячейки хранения не найдены стандартным способом, пробуем альтернативные варианты")
+
+            for (i in headers.indices) {
+                if (i < rowData.size) {
+                    val cellValue = rowData[i].trim()
+                    val headerValue = headers[i].trim().lowercase()
+
+                    // Ищем колонки, которые могут содержать ячейки хранения
+                    if (cellValue.isNotBlank() &&
+                        (headerValue.contains("ячейк") ||
+                         headerValue.contains("хран") ||
+                         headerValue.contains("мест") ||
+                         headerValue.contains("секц") ||
+                         headerValue.contains("ряд") ||
+                         headerValue.contains("полк") ||
+                         // Также проверяем по паттернам в самих данных
+                         cellValue.matches(Regex("[A-Z]\\d+")) || // A1, B2, C10 и т.д.
+                         cellValue.matches(Regex("\\d+-[A-Z]-\\d+")) || // 1-A-1, 2-B-3 и т.д.
+                         cellValue.matches(Regex("[A-Z]-\\d+")))) { // A-1, B-2 и т.д.
+
+                        android.util.Log.d("EXCEL_DEBUG", "Найдена потенциальная колонка с ячейками: '${headers[i]}' = '$cellValue'")
+
+                        // Парсим найденные ячейки
+                        val foundCells = cellValue.split(Regex("[,;/\\s]+"))
+                            .map { it.trim() }
+                            .filter { it.isNotBlank() }
+                            .mapNotNull { StorageCell.fromString(it) }
+
+                        if (foundCells.isNotEmpty()) {
+                            storageCells = foundCells
+                            android.util.Log.d("EXCEL_DEBUG", "Добавлены ячейки хранения: ${foundCells.joinToString(", ") { it.toDisplayString() }}")
+                            break // Нашли ячейки, прекращаем поиск
+                        }
+                    }
+                }
+            }
+        }
+
         val product = Product(
             article = article,
-            name = name,
+            name = finalName,
             barcode = barcode,
             requiredQuantity = requiredQuantity,
             actualQuantity = actualQuantity, // Используем данные из колонки "Остаток"
             unit = unit,
             price = 0.0, // Цена не указана в структуре
             rowIndex = rowIndex,
-            storageCells = storageCells
+            storageCells = storageCells,
+            fileStockQuantity = fileStockQuantity
         )
 
         // Определяем статус на основе данных
@@ -286,6 +380,8 @@ class ExcelServiceImpl : ExcelService {
             product.requiredQuantity > 0 -> ProductStatus.PENDING // Ожидает
             else -> ProductStatus.PENDING
         }
+
+        android.util.Log.d("EXCEL_DEBUG", "Создан продукт: $product")
 
         return product.copy(status = status)
     }
@@ -308,13 +404,17 @@ class ExcelServiceImpl : ExcelService {
     }
 
     private fun getColumnValue(rowData: List<String>, headers: List<String>, vararg columnNames: String): String {
+        android.util.Log.d("EXCEL_DEBUG", "Поиск колонки среди: ${columnNames.joinToString(", ")} в заголовках: $headers")
+
         // Для более точного поиска используем exact match сначала
         columnNames.forEach { columnName ->
             val exactMatchIndex = headers.indexOfFirst { header ->
                 header.trim().lowercase() == columnName.lowercase()
             }
             if (exactMatchIndex >= 0 && exactMatchIndex < rowData.size) {
-                return rowData[exactMatchIndex]
+                val value = rowData[exactMatchIndex]
+                android.util.Log.d("EXCEL_DEBUG", "Найдено точное совпадение '$columnName' по индексу $exactMatchIndex, значение: '$value'")
+                return value
             }
 
             // Если точное совпадение не найдено, ищем по частичному совпадению
@@ -323,10 +423,43 @@ class ExcelServiceImpl : ExcelService {
                 columnName.lowercase().contains(header.lowercase())
             }
             if (partialMatchIndex >= 0 && partialMatchIndex < rowData.size) {
-                return rowData[partialMatchIndex]
+                val value = rowData[partialMatchIndex]
+                android.util.Log.d("EXCEL_DEBUG", "Найдено частичное совпадение '$columnName' по индексу $partialMatchIndex, значение: '$value'")
+                return value
             }
         }
+
+        android.util.Log.d("EXCEL_DEBUG", "Колонка не найдена среди: ${columnNames.joinToString(", ")}")
         return ""
+    }
+
+    // Отладочная функция для проверки столбцов Excel
+    fun debugExcelColumns() {
+        android.util.Log.d("EXCEL_DEBUG", "=== ДЕБАГ СТОЛБЦОВ ===")
+        android.util.Log.d("EXCEL_DEBUG", "Проверяем соответствие названий столбцов")
+        val testHeaders = listOf("Артикул", "Товар", "Кол-во", "Остаток", "Штрихкод", "Ед.", "Ячейка")
+        val searchTerms = mapOf(
+            "артикул" to listOf("артикул"),
+            "товар" to listOf("товар", "наименование", "название", "работы", "услуги", "наименование товара"),
+            "кол-во" to listOf("кол-во", "количество", "колво"),
+            "ост" to listOf("остаток"),
+            "штрих" to listOf("штрихкод", "штрих"),
+            "ед" to listOf("ед.", "ед", "единица", "ед.изм"),
+            "ячейка" to listOf("ячейка", "хранение", "ячейки", "место хранения")
+        )
+
+        testHeaders.forEach { header ->
+            android.util.Log.d("EXCEL_DEBUG", "Заголовок '$header':")
+            searchTerms.forEach { (key, terms) ->
+                val matches = terms.any { term ->
+                    header.lowercase().contains(term.lowercase()) ||
+                    term.lowercase().contains(header.lowercase())
+                }
+                if (matches) {
+                    android.util.Log.d("EXCEL_DEBUG", "  - Соответствует поиску '$key'")
+                }
+            }
+        }
     }
 
     private fun findTableDataFromRows(rows: List<List<String>>): TableAnalysisResult? {

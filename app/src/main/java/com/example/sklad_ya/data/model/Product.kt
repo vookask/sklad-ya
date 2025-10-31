@@ -15,7 +15,8 @@ data class Product(
     val unit: String = "",                      // Единица измерения
     val price: Double = 0.0,                    // Цена
     val rowIndex: Int = 0,                      // Индекс строки в исходном файле
-    val originalData: Map<String, String> = emptyMap() // Оригинальные данные из Excel
+    val originalData: Map<String, String> = emptyMap(), // Оригинальные данные из Excel
+    val fileStockQuantity: Double = 0.0         // Остаток из файла Excel
 ) {
     /**
      * Обновить фактическое количество и пересчитать статус
@@ -68,7 +69,9 @@ data class Product(
      * Получить отформатированное фактическое количество для отображения
      */
     fun getFormattedActualQuantity(): String {
-        return if (actualQuantity % 1.0 == 0.0) {
+        return if (actualQuantity == 0.0) {
+            "" // Пустая строка вместо "0"
+        } else if (actualQuantity % 1.0 == 0.0) {
             actualQuantity.toInt().toString()
         } else {
             actualQuantity.toString()
