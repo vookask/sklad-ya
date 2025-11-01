@@ -38,6 +38,7 @@ fun MainScreen(
     val products by viewModel.products.collectAsState()
     val filteredProducts by viewModel.filteredProducts.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val exportState by viewModel.exportState.collectAsState()
 
     // Состояния для диалога выбора ячеек
     var showCellSelectorDialog by remember { mutableStateOf(false) }
@@ -46,6 +47,33 @@ fun MainScreen(
 
     // Состояние для диалога подтверждения очистки
     var showClearConfirmationDialog by remember { mutableStateOf(false) }
+
+    // Состояние для показа сообщений пользователю
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Обработка состояния экспорта
+    LaunchedEffect(exportState) {
+        when (exportState) {
+            is com.example.sklad_ya.ui.screens.ExportState.Loading -> {
+                snackbarHostState.showSnackbar("Экспорт данных...")
+            }
+            is com.example.sklad_ya.ui.screens.ExportState.Success -> {
+                val filePath = (exportState as com.example.sklad_ya.ui.screens.ExportState.Success).filePath
+                val fileName = if (filePath.contains("/")) java.io.File(filePath).name else filePath
+                val successMessage = "Файл сохранён в Downloads: $fileName"
+                snackbarHostState.showSnackbar(successMessage)
+                viewModel.resetExportState()
+            }
+            is com.example.sklad_ya.ui.screens.ExportState.Error -> {
+                val errorMessage = (exportState as com.example.sklad_ya.ui.screens.ExportState.Error).message
+                snackbarHostState.showSnackbar(errorMessage)
+                viewModel.resetExportState()
+            }
+            is com.example.sklad_ya.ui.screens.ExportState.Idle -> {
+                // Ничего не делаем
+            }
+        }
+    }
 
     // Launcher для выбора файлов
     val filePickerLauncher = rememberLauncherForActivityResult(
@@ -58,6 +86,7 @@ fun MainScreen(
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Приёмка товаров в ячейки") },
@@ -74,14 +103,16 @@ fun MainScreen(
                         )
                     }
 
-                    // Кнопка сохранения
+                    // Кнопка экспорта
                     IconButton(
-                        onClick = { /* TODO: Реализовать сохранение */ },
-                        enabled = products.isNotEmpty()
+                        onClick = {
+                            viewModel.exportToExcel(context)
+                        },
+                        enabled = products.isNotEmpty() && exportState !is com.example.sklad_ya.ui.screens.ExportState.Loading
                     ) {
                         Icon(
                             imageVector = Icons.Default.Save,
-                            contentDescription = "Сохранить Excel"
+                            contentDescription = "Экспортировать Excel"
                         )
                     }
 

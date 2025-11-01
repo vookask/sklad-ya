@@ -123,11 +123,36 @@ class ExcelServiceImpl : ExcelService {
 
     override suspend fun saveExcelData(data: ExcelData, fileName: String): Result<String> {
         return try {
-            // TODO: Реализовать сохранение в Excel файл
-            // Пока просто возвращаем успешный результат
-            Result.success("Файл сохранён: $fileName")
+            withContext(Dispatchers.IO) {
+                // Создаем новый Excel файл
+                val workbook = org.apache.poi.xssf.usermodel.XSSFWorkbook()
+                val sheet = workbook.createSheet(data.sheetName)
+
+                // Получаем данные для сохранения
+                val dataRows = prepareDataForSaving(data)
+
+                // Записываем данные в лист
+                dataRows.forEachIndexed { rowIndex, rowData ->
+                    val row = sheet.createRow(rowIndex)
+                    rowData.forEachIndexed { colIndex, cellValue ->
+                        val cell = row.createCell(colIndex)
+                        cell.setCellValue(cellValue)
+                    }
+                }
+
+                // Сохраняем файл
+                val file = java.io.File(fileName)
+                java.io.FileOutputStream(file).use { fos ->
+                    workbook.write(fos)
+                }
+
+                workbook.close()
+
+                Result.success("Файл успешно экспортирован: ${file.absolutePath}")
+            }
         } catch (e: Exception) {
-            Result.failure(e)
+            android.util.Log.e("EXCEL_EXPORT", "Ошибка при экспорте Excel файла: ${e.message}", e)
+            Result.failure(Exception("Ошибка при экспорте Excel файла: ${e.message}"))
         }
     }
 
@@ -150,7 +175,23 @@ class ExcelServiceImpl : ExcelService {
 
     override fun prepareDataForSaving(data: ExcelData): List<List<String>> {
         val result = mutableListOf<List<String>>()
-        result.add(data.headers)
+
+        // Заголовки
+        val headers = listOf(
+            "Артикул",
+            "Товар",
+            "Кол-во",
+            "Факт",
+            "Статус",
+            "Ячейки",
+            "Ед. изм.",
+            "Штрихкод",
+            "Цена",
+            "Остаток из файла"
+        )
+        result.add(headers)
+
+        // Данные продуктов
         result.addAll(data.products.map { product ->
             listOf(
                 product.article,
@@ -158,9 +199,20 @@ class ExcelServiceImpl : ExcelService {
                 product.getFormattedQuantity(),
                 product.getFormattedActualQuantity(),
                 product.status.getSymbol(),
-                product.getStorageCellsDisplayString()
+                product.getStorageCellsDisplayString(),
+                product.unit,
+                product.barcode,
+                if (product.price > 0) product.price.toString() else "",
+                if (product.fileStockQuantity > 0) {
+                    if (product.fileStockQuantity % 1.0 == 0.0) {
+                        product.fileStockQuantity.toInt().toString()
+                    } else {
+                        product.fileStockQuantity.toString()
+                    }
+                } else ""
             )
         })
+
         return result
     }
 

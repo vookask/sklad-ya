@@ -20,6 +20,16 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
+ * Состояние экспорта данных
+ */
+sealed class ExportState {
+    data object Idle : ExportState()
+    data object Loading : ExportState()
+    data class Success(val filePath: String) : ExportState()
+    data class Error(val message: String) : ExportState()
+}
+
+/**
  * ViewModel главного экрана приложения
  */
 class MainViewModel : ViewModel() {
@@ -45,6 +55,10 @@ class MainViewModel : ViewModel() {
     // Отфильтрованный список товаров
     private val _filteredProducts = MutableStateFlow<List<Product>>(emptyList())
     val filteredProducts: StateFlow<List<Product>> = _filteredProducts.asStateFlow()
+
+    // Состояние экспорта
+    private val _exportState = MutableStateFlow<ExportState>(ExportState.Idle)
+    val exportState: StateFlow<ExportState> = _exportState.asStateFlow()
 
     init {
         // При инициализации загружаем сохранённые данные
@@ -185,6 +199,118 @@ class MainViewModel : ViewModel() {
     }
 
     /**
+     * Экспортировать данные в Excel файл
+     */
+    fun exportToExcel(context: android.content.Context) {
+        val products = _products.value
+        if (products.isEmpty()) {
+            _exportState.value = ExportState.Error("Нет данных для экспорта")
+            return
+        }
+
+        _exportState.value = ExportState.Loading
+
+        // Запускаем корутину для экспорта
+        viewModelScope.launch {
+            try {
+                // Создаем уникальное имя файла с датой и временем
+                val currentTime = java.time.LocalDateTime.now()
+                val formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss")
+                val timestamp = currentTime.format(formatter)
+                val fileName = "sklad_export_${timestamp}.xlsx"
+
+                // Проверяем разрешения для Android 10+ используем scoped storage
+                val filePath = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    // Используем MediaStore для Android 10+
+                    saveFileUsingMediaStore(context, fileName, products)
+                } else {
+                    // Для старых версий используем прямой доступ к файловой системе
+                    val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+                    val file = java.io.File(downloadsDir, fileName)
+                    val filePath = file.absolutePath
+
+                    // Создаем ExcelData из текущих продуктов
+                    val excelData = ExcelData(
+                        fileName = fileName,
+                        sheetName = "Товары",
+                        headers = listOf("Артикул", "Товар", "Кол-во", "Факт", "Статус", "Ячейки"),
+                        products = products
+                    )
+
+                    val result = excelService.saveExcelData(excelData, filePath)
+                    result.fold(
+                        onSuccess = { filePath },
+                        onFailure = { throw it }
+                    )
+                }
+
+                android.util.Log.d("EXPORT", "Файл успешно сохранен: $filePath")
+                _exportState.value = ExportState.Success(filePath)
+
+            } catch (e: Exception) {
+                android.util.Log.e("EXPORT", "Ошибка экспорта: ${e.message}", e)
+                _exportState.value = ExportState.Error("Ошибка экспорта: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Сохранение файла через MediaStore для Android 10+
+     */
+    @android.annotation.TargetApi(29)
+    private suspend fun saveFileUsingMediaStore(context: android.content.Context, fileName: String, products: List<Product>): String {
+        val contentValues = android.content.ContentValues().apply {
+            put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+            put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "Download")
+        }
+
+        val resolver = context.contentResolver
+        val uri = resolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+            ?: throw Exception("Не удалось создать файл в MediaStore")
+
+        try {
+            resolver.openOutputStream(uri)?.use { outputStream ->
+                // Создаем Excel файл в памяти
+                val workbook = org.apache.poi.xssf.usermodel.XSSFWorkbook()
+                val sheet = workbook.createSheet("Товары")
+
+                // Получаем данные для сохранения
+                val dataRows = excelService.prepareDataForSaving(ExcelData(
+                    fileName = fileName,
+                    sheetName = "Товары",
+                    headers = listOf("Артикул", "Товар", "Кол-во", "Факт", "Статус", "Ячейки"),
+                    products = products
+                ))
+
+                // Записываем данные в лист
+                dataRows.forEachIndexed { rowIndex, rowData ->
+                    val row = sheet.createRow(rowIndex)
+                    rowData.forEachIndexed { colIndex, cellValue ->
+                        val cell = row.createCell(colIndex)
+                        cell.setCellValue(cellValue)
+                    }
+                }
+
+                // Сохраняем workbook в output stream
+                workbook.write(outputStream)
+                workbook.close()
+            }
+
+            return fileName // Возвращаем имя файла вместо полного пути
+
+        } catch (e: Exception) {
+            // В случае ошибки пытаемся удалить созданный файл из MediaStore
+            try {
+                resolver.delete(uri, null, null)
+            } catch (deleteException: Exception) {
+                android.util.Log.e("EXPORT", "Ошибка удаления файла из MediaStore: ${deleteException.message}")
+            }
+            throw e
+        }
+    }
+
+    /**
      * Очистить все данные
      */
     fun clearAllData() {
@@ -192,6 +318,14 @@ class MainViewModel : ViewModel() {
         _filteredProducts.value = emptyList()
         _searchQuery.value = ""
         _fileLoadState.value = FileLoadState.Idle
+        _exportState.value = ExportState.Idle
+    }
+
+    /**
+     * Сбросить состояние экспорта
+     */
+    fun resetExportState() {
+        _exportState.value = ExportState.Idle
     }
 
     /**
