@@ -351,13 +351,21 @@ class ExcelServiceImpl : ExcelService {
 
         val barcode = getColumnValue(rowData, headers, "штрихкод", "штрих")
         val requiredQuantity = getColumnValue(rowData, headers, "кол-во", "количество", "колво").toDoubleOrNull() ?: 0.0
-        // Факт всегда пустой при загрузке - заполняется в приложении
-        val actualQuantity = 0.0
+
+        // Проверяем, есть ли колонка "Факт" в заголовках (для загрузки экспортированных файлов)
+        val actualQuantity = if (headers.any { it.trim().lowercase() == "факт" }) {
+            val factValue = getColumnValue(rowData, headers, "факт")
+            android.util.Log.d("EXCEL_DEBUG", "Найдена колонка 'Факт', значение: '$factValue'")
+            factValue.toDoubleOrNull() ?: 0.0
+        } else {
+            android.util.Log.d("EXCEL_DEBUG", "Колонка 'Факт' не найдена в заголовках: $headers")
+            0.0 // Факт всегда пустой при загрузке из оригинального файла - заполняется в приложении
+        }
         val unit = getColumnValue(rowData, headers, "ед.", "ед", "единица", "ед.изм")
         val storageCellsStr = getColumnValue(rowData, headers, "ячейка", "хранение", "ячейки", "место хранения")
         val fileStockQuantity = getColumnValue(rowData, headers, "остаток", "остатки").toDoubleOrNull() ?: 0.0
 
-        android.util.Log.d("EXCEL_DEBUG", "Извлечённые данные: артикул='$article', товар='$finalName', кол-во='$requiredQuantity', ячейки='$storageCellsStr', остаток='$fileStockQuantity'")
+        android.util.Log.d("EXCEL_DEBUG", "Извлечённые данные: артикул='$article', товар='$finalName', кол-во='$requiredQuantity', факт='$actualQuantity', ячейки='$storageCellsStr', остаток='$fileStockQuantity'")
 
         // Парсим ячейки хранения (могут быть через запятую)
         var storageCells = if (storageCellsStr.isNotBlank()) {
@@ -689,36 +697,42 @@ class ExcelServiceImpl : ExcelService {
             true
         }
 
-        // Добавляем колонки "Факт", "Статус" и "Остаток из файла" после "Кол-во"
-        val kolvoColIdx = headers.indexOfFirst { h ->
-            h.lowercase().contains("кол") && (h.lowercase().contains("во") || h.lowercase().contains("ичество"))
-        }
-        if (kolvoColIdx != -1) {
-            val insertIdx = kolvoColIdx + 1
-            val newHeaders = ArrayList(headers)
-            newHeaders.add(insertIdx, "Факт")
-            newHeaders.add(insertIdx + 1, "Статус")
-            newHeaders.add(insertIdx + 2, "Остаток из файла")
-            headers = newHeaders
+        // Добавляем колонки "Факт", "Статус" и "Остаток из файла" только если их нет
+        val hasFactColumn = headers.any { it.trim().lowercase() == "факт" }
 
-            val newFilteredRows = filteredRows.mapIndexed { filteredIndex, row ->
-                val newRow = ArrayList(row)
-                newRow.add(insertIdx, "") // Факт - пустой
-                newRow.add(insertIdx + 1, "") // Статус - пустой
-
-                // Остаток из файла добавляем из оригинальной строки данных
-                val originalRowIndex = headerRowIndex + 1 + filteredIndex
-                if (originalRowIndex < rows.size) {
-                    val originalRow = rows[originalRowIndex]
-                    val fileRemainder = getColumnValue(originalRow, headers, "остаток")
-                    newRow.add(insertIdx + 2, fileRemainder) // Остаток из файла
-                } else {
-                    newRow.add(insertIdx + 2, "") // Остаток из файла
-                }
-
-                newRow
+        if (!hasFactColumn) {
+            val kolvoColIdx = headers.indexOfFirst { h ->
+                h.lowercase().contains("кол") && (h.lowercase().contains("во") || h.lowercase().contains("ичество"))
             }
-            filteredRows = newFilteredRows
+            if (kolvoColIdx != -1) {
+                val insertIdx = kolvoColIdx + 1
+                val newHeaders = ArrayList(headers)
+                newHeaders.add(insertIdx, "Факт")
+                newHeaders.add(insertIdx + 1, "Статус")
+                newHeaders.add(insertIdx + 2, "Остаток из файла")
+                headers = newHeaders
+
+                val newFilteredRows = filteredRows.mapIndexed { filteredIndex, row ->
+                    val newRow = ArrayList(row)
+                    newRow.add(insertIdx, "") // Факт - пустой
+                    newRow.add(insertIdx + 1, "") // Статус - пустой
+
+                    // Остаток из файла добавляем из оригинальной строки данных
+                    val originalRowIndex = headerRowIndex + 1 + filteredIndex
+                    if (originalRowIndex < rows.size) {
+                        val originalRow = rows[originalRowIndex]
+                        val fileRemainder = getColumnValue(originalRow, headers, "остаток")
+                        newRow.add(insertIdx + 2, fileRemainder) // Остаток из файла
+                    } else {
+                        newRow.add(insertIdx + 2, "") // Остаток из файла
+                    }
+
+                    newRow
+                }
+                filteredRows = newFilteredRows
+            }
+        } else {
+            android.util.Log.d("EXCEL_DEBUG", "Колонка 'Факт' уже присутствует в заголовках, пропускаем добавление служебных колонок")
         }
 
         return TableAnalysisResult(

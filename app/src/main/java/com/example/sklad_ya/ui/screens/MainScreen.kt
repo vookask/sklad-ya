@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.Inventory
@@ -50,6 +51,10 @@ fun MainScreen(
 
     // Состояние для показа сообщений пользователю
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // Debug логи
+    val debugLogs by viewModel.debugLogsFlow.collectAsState()
+    var showDebugDialog by remember { mutableStateOf(false) }
 
     // Обработка состояния экспорта
     LaunchedEffect(exportState) {
@@ -115,6 +120,16 @@ fun MainScreen(
                             contentDescription = "Экспортировать Excel"
                         )
                     }
+
+                    // Кнопка debug логов (скрыта для продакшена)
+                    /*
+                    IconButton(onClick = { showDebugDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Default.BugReport,
+                            contentDescription = "Показать debug логи"
+                        )
+                    }
+                    */
 
                     // Кнопка очистки
                     IconButton(
@@ -248,6 +263,28 @@ fun MainScreen(
                 }
             },
             currentCells = currentStorageCells
+        )
+    }
+
+    // Debug диалог
+    if (showDebugDialog) {
+        AlertDialog(
+            onDismissRequest = { showDebugDialog = false },
+            title = { Text("Debug Logs") },
+            text = {
+                Column {
+                    Text(
+                        text = viewModel.getDebugLogsAsString(),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showDebugDialog = false }) {
+                    Text("Закрыть")
+                }
+            }
         )
     }
 }

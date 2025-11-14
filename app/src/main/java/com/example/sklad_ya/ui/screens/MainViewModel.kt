@@ -19,6 +19,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+// Debug logs для диагностики
+private val debugLogs = MutableStateFlow<List<String>>(emptyList())
+
 /**
  * Состояние экспорта данных
  */
@@ -60,6 +63,9 @@ class MainViewModel : ViewModel() {
     private val _exportState = MutableStateFlow<ExportState>(ExportState.Idle)
     val exportState: StateFlow<ExportState> = _exportState.asStateFlow()
 
+    // Debug logs для отображения в UI
+    val debugLogsFlow: StateFlow<List<String>> = debugLogs.asStateFlow()
+
     init {
         // При инициализации загружаем сохранённые данные
         loadSavedData()
@@ -97,6 +103,7 @@ class MainViewModel : ViewModel() {
                         result.fold(
                             onSuccess = { excelData ->
                                 _products.value = excelData.products
+                                _searchQuery.value = "" // Сбрасываем поисковый запрос при загрузке нового файла
                                 _filteredProducts.value = excelData.products
                                 _fileLoadState.value = FileLoadState.Success(excelData)
                             },
@@ -150,14 +157,25 @@ class MainViewModel : ViewModel() {
      */
     fun updateProductQuantity(productId: String, quantity: Double) {
         val currentProducts = _products.value
+        val logMessage = "updateProductQuantity: productId=$productId, quantity=$quantity, currentProducts.size=${currentProducts.size}"
+        android.util.Log.d("DEBUG", logMessage)
+        debugLogs.value = debugLogs.value + logMessage
+
         val updatedProducts = currentProducts.map { product ->
             if (product.id == productId) {
-                product.updateActualQuantity(quantity)
+                val updated = product.updateActualQuantity(quantity)
+                val updateLog = "updateProductQuantity: updated product ${product.id}, actualQuantity: ${product.actualQuantity} -> ${updated.actualQuantity}"
+                android.util.Log.d("DEBUG", updateLog)
+                debugLogs.value = debugLogs.value + updateLog
+                updated
             } else {
                 product
             }
         }
         _products.value = updatedProducts
+        val finalLog = "updateProductQuantity: updated _products.value"
+        android.util.Log.d("DEBUG", finalLog)
+        debugLogs.value = debugLogs.value + finalLog
         applySearchFilter()
     }
 
@@ -195,7 +213,7 @@ class MainViewModel : ViewModel() {
      */
     fun clearSearch() {
         _searchQuery.value = ""
-        _filteredProducts.value = _products.value
+        applySearchFilter()
     }
 
     /**
@@ -319,6 +337,14 @@ class MainViewModel : ViewModel() {
         _searchQuery.value = ""
         _fileLoadState.value = FileLoadState.Idle
         _exportState.value = ExportState.Idle
+        debugLogs.value = emptyList()
+    }
+
+    /**
+     * Получить все debug логи как строку
+     */
+    fun getDebugLogsAsString(): String {
+        return debugLogs.value.joinToString("\n")
     }
 
     /**
@@ -331,27 +357,39 @@ class MainViewModel : ViewModel() {
     /**
      * Применить фильтр поиска к текущему списку товаров
      */
-    private fun applySearchFilter() {
-        val query = _searchQuery.value.trim()
-        if (query.isBlank()) {
-            _filteredProducts.value = _products.value
-        } else {
-            _filteredProducts.value = _products.value.filter { product ->
-                // Поиск по артикулу
-                product.article.contains(query, ignoreCase = true) ||
-                // Поиск по названию товара
-                product.name.contains(query, ignoreCase = true) ||
-                // Поиск по штрихкоду
-                product.barcode.contains(query, ignoreCase = true) ||
-                // Поиск по ячейкам хранения
-                product.getStorageCellsDisplayString().contains(query, ignoreCase = true) ||
-                // Поиск по единице измерения
-                product.unit.contains(query, ignoreCase = true) ||
-                // Поиск по цене (если цена содержит запрос как строку)
-                product.price.toString().contains(query)
-            }
-        }
-    }
+     private fun applySearchFilter() {
+         val query = _searchQuery.value.trim()
+         val allProducts = _products.value
+         val logMessage = "applySearchFilter: query='$query', allProducts.size=${allProducts.size}"
+         android.util.Log.d("DEBUG", logMessage)
+         debugLogs.value = debugLogs.value + logMessage
+
+         if (query.isBlank()) {
+             _filteredProducts.value = allProducts
+             val noQueryLog = "applySearchFilter: no query, filteredProducts.size=${_filteredProducts.value.size}"
+             android.util.Log.d("DEBUG", noQueryLog)
+             debugLogs.value = debugLogs.value + noQueryLog
+         } else {
+             val filtered = allProducts.filter { product ->
+                 // Поиск по артикулу
+                 product.article.contains(query, ignoreCase = true) ||
+                 // Поиск по названию товара
+                 product.name.contains(query, ignoreCase = true) ||
+                 // Поиск по штрихкоду
+                 product.barcode.contains(query, ignoreCase = true) ||
+                 // Поиск по ячейкам хранения
+                 product.getStorageCellsDisplayString().contains(query, ignoreCase = true) ||
+                 // Поиск по единице измерения
+                 product.unit.contains(query, ignoreCase = true) ||
+                 // Поиск по цене (если цена содержит запрос как строку)
+                 product.price.toString().contains(query)
+             }
+             _filteredProducts.value = filtered
+             val filterLog = "applySearchFilter: filtered.size=${filtered.size}, first actualQuantity=${filtered.firstOrNull()?.actualQuantity ?: "none"}"
+             android.util.Log.d("DEBUG", filterLog)
+             debugLogs.value = debugLogs.value + filterLog
+         }
+     }
 
     /**
      * Загрузить сохранённые данные (заглушка для будущего функционала)

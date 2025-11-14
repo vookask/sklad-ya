@@ -3,6 +3,7 @@ package com.example.sklad_ya.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -13,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -59,10 +61,11 @@ fun ProductTable(
 
         // Строки товаров
         LazyColumn {
-            items(products) { product ->
+            items(products, key = { it.id }) { product ->
                 ProductRow(
                     product = product,
                     onQuantityChange = { quantity ->
+                        android.util.Log.d("DEBUG", "ProductTable: onQuantityChange for product ${product.id}, quantity=$quantity")
                         onProductQuantityUpdate(product.id, quantity)
                     },
                     onStorageCellClick = onStorageCellClick,
@@ -95,6 +98,7 @@ private fun ProductRow(
     onStorageCellClick: (String, List<com.example.sklad_ya.data.model.StorageCell>) -> Unit,
     scrollState: androidx.compose.foundation.ScrollState
 ) {
+    android.util.Log.d("DEBUG", "ProductRow: rendering product ${product.id}, actualQuantity=${product.actualQuantity}")
     Row(
         modifier = Modifier
             .horizontalScroll(scrollState)
@@ -110,6 +114,7 @@ private fun ProductRow(
         EditableQuantityCell(
             value = product.getFormattedActualQuantity(),
             onValueChange = { newValue ->
+                android.util.Log.d("DEBUG", "ProductRow: EditableQuantityCell onValueChange for product ${product.id}, newValue='$newValue'")
                 val quantity = newValue.toDoubleOrNull() ?: 0.0
                 onQuantityChange(quantity)
             },
@@ -170,10 +175,8 @@ private fun EditableQuantityCell(
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var textValue by remember(value) { mutableStateOf(value) }
-    var isEditing by remember { mutableStateOf(false) }
-
-    var localFocusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    var textValue by remember { mutableStateOf(value) }
+    android.util.Log.d("DEBUG", "EditableQuantityCell: initial value='$value', textValue='$textValue'")
 
     BasicTextField(
         value = textValue,
@@ -181,15 +184,6 @@ private fun EditableQuantityCell(
             // Фильтруем только цифры и точку
             val filteredValue = newValue.filter { it.isDigit() || it == '.' }
             textValue = filteredValue
-            isEditing = true
-            // Автосохранение через небольшую задержку
-            CoroutineScope(Dispatchers.Main).launch {
-                delay(1000) // Ждём 1 секунду после последнего изменения
-                if (isEditing) {
-                    onValueChange(filteredValue)
-                    isEditing = false
-                }
-            }
         },
         modifier = modifier
             .padding(4.dp)
@@ -201,7 +195,14 @@ private fun EditableQuantityCell(
                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
             )
-            .padding(8.dp),
+            .padding(8.dp)
+            .onFocusChanged { focusState ->
+                // Сохраняем значение при потере фокуса
+                if (!focusState.isFocused && textValue != value) {
+                    android.util.Log.d("DEBUG", "EditableQuantityCell: focus lost, calling onValueChange with '$textValue'")
+                    onValueChange(textValue)
+                }
+            },
         textStyle = TextStyle(
             color = MaterialTheme.colorScheme.onSurface,
             fontSize = 14.sp,
