@@ -209,6 +209,9 @@ fun MainScreen(
                                 onProductQuantityUpdate = { productId, quantity ->
                                     viewModel.updateProductQuantity(productId, quantity)
                                 },
+                                onProductCommentUpdate = { productId, comment ->
+                                    viewModel.updateProductComment(productId, comment)
+                                },
                                 onStorageCellClick = { productId, currentCells ->
                                     selectedProductId = productId
                                     currentStorageCells = currentCells

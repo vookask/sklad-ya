@@ -180,6 +180,30 @@ class MainViewModel : ViewModel() {
     }
 
     /**
+     * Обновить комментарий товара
+     */
+    fun updateProductComment(productId: String, comment: String) {
+        val currentProducts = _products.value
+        val logMessage = "updateProductComment: productId=$productId, comment='$comment'"
+        android.util.Log.d("DEBUG", logMessage)
+        debugLogs.value = debugLogs.value + logMessage
+
+        val updatedProducts = currentProducts.map { product ->
+            if (product.id == productId) {
+                val updated = product.updateComment(comment)
+                val updateLog = "updateProductComment: updated product ${product.id}, comment: '${product.comment}' -> '${updated.comment}'"
+                android.util.Log.d("DEBUG", updateLog)
+                debugLogs.value = debugLogs.value + updateLog
+                updated
+            } else {
+                product
+            }
+        }
+        _products.value = updatedProducts
+        applySearchFilter()
+    }
+
+    /**
      * Добавить ячейку хранения для товара
      */
     fun addStorageCellToProduct(productId: String, cellString: String) {

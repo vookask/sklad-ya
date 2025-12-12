@@ -31,6 +31,7 @@ import kotlinx.coroutines.launch
 fun ProductTable(
     products: List<Product>,
     onProductQuantityUpdate: (String, Double) -> Unit,
+    onProductCommentUpdate: (String, String) -> Unit,
     onStorageCellClick: (String, List<com.example.sklad_ya.data.model.StorageCell>) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -50,6 +51,7 @@ fun ProductTable(
             TableHeaderCell("Факт", Modifier.width(80.dp))
             TableHeaderCell("Статус", Modifier.width(80.dp))
             TableHeaderCell("Ячейки", Modifier.width(150.dp))
+            TableHeaderCell("Комментарий", Modifier.width(200.dp))
             // Добавляем колонку "Остаток" если есть данные об остатках
             if (products.any { it.fileStockQuantity > 0 }) {
                 TableHeaderCell("Остаток", Modifier.width(80.dp))
@@ -67,6 +69,10 @@ fun ProductTable(
                     onQuantityChange = { quantity ->
                         android.util.Log.d("DEBUG", "ProductTable: onQuantityChange for product ${product.id}, quantity=$quantity")
                         onProductQuantityUpdate(product.id, quantity)
+                    },
+                    onCommentChange = { comment ->
+                        android.util.Log.d("DEBUG", "ProductTable: onCommentChange for product ${product.id}, comment='$comment'")
+                        onProductCommentUpdate(product.id, comment)
                     },
                     onStorageCellClick = onStorageCellClick,
                     scrollState = horizontalScrollState
@@ -95,6 +101,7 @@ private fun TableHeaderCell(
 private fun ProductRow(
     product: Product,
     onQuantityChange: (Double) -> Unit,
+    onCommentChange: (String) -> Unit,
     onStorageCellClick: (String, List<com.example.sklad_ya.data.model.StorageCell>) -> Unit,
     scrollState: androidx.compose.foundation.ScrollState
 ) {
@@ -132,6 +139,16 @@ private fun ProductRow(
             productCells = product.storageCells,
             modifier = Modifier.width(150.dp),
             multiLine = true
+        )
+
+        // Редактируемый комментарий (как факт)
+        EditableTextCell(
+            value = product.comment,
+            onValueChange = { newValue ->
+                android.util.Log.d("DEBUG", "ProductRow: EditableTextCell onValueChange for product ${product.id}, newValue='$newValue'")
+                onCommentChange(newValue)
+            },
+            modifier = Modifier.width(200.dp)
         )
 
         // Остаток из файла (показываем только если есть данные)
@@ -211,6 +228,95 @@ private fun EditableQuantityCell(
         singleLine = true,
         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
             keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+        )
+    )
+}
+
+@Composable
+private fun EditableTextCell(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var textValue by remember { mutableStateOf(value) }
+    android.util.Log.d("DEBUG", "EditableTextCell: initial value='$value', textValue='$textValue'")
+
+    BasicTextField(
+        value = textValue,
+        onValueChange = { newValue ->
+            textValue = newValue
+        },
+        modifier = modifier
+            .padding(4.dp)
+            .border(
+                width = 2.dp,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+            )
+            .background(
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
+            )
+            .padding(8.dp)
+            .onFocusChanged { focusState ->
+                // Сохраняем значение при потере фокуса
+                if (!focusState.isFocused && textValue != value) {
+                    android.util.Log.d("DEBUG", "EditableTextCell: focus lost, calling onValueChange with '$textValue'")
+                    onValueChange(textValue)
+                }
+            },
+        textStyle = TextStyle(
+            color = MaterialTheme.colorScheme.onSurface,
+            fontSize = 14.sp,
+            textAlign = TextAlign.Start
+        ),
+        singleLine = false,
+        maxLines = 3,
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+            keyboardType = androidx.compose.ui.text.input.KeyboardType.Text
+        )
+    )
+}
+
+@Composable
+private fun EditableCommentCell(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var textValue by remember { mutableStateOf(value) }
+    android.util.Log.d("DEBUG", "EditableCommentCell: initial value='$value', textValue='$textValue'")
+
+    BasicTextField(
+        value = textValue,
+        onValueChange = { newValue ->
+            textValue = newValue
+        },
+        modifier = modifier
+            .padding(4.dp)
+            .border(
+                width = 2.dp,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+            )
+            .background(
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
+            )
+            .padding(8.dp)
+            .onFocusChanged { focusState ->
+                // Сохраняем значение при потере фокуса
+                if (!focusState.isFocused && textValue != value) {
+                    android.util.Log.d("DEBUG", "EditableCommentCell: focus lost, calling onValueChange with '$textValue'")
+                    onValueChange(textValue)
+                }
+            },
+        textStyle = TextStyle(
+            color = MaterialTheme.colorScheme.onSurface,
+            fontSize = 14.sp,
+            textAlign = TextAlign.Center
+        ),
+        singleLine = true,
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+            keyboardType = androidx.compose.ui.text.input.KeyboardType.Text
         )
     )
 }

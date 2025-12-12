@@ -6,7 +6,7 @@ package com.example.sklad_ya.data.model
  * Пример: A1-1-1, B5-2-3, S13-3-4
  */
 data class StorageCell(
-    val letter: Char,        // Буква: A, B, C, D, F, I, J, K, S
+    val letter: Char,        // Буква: A, B, C, D, F, I, J, K, S, Y
     val number1: Int,       // Первое число: 1-13
     val number2: Int,       // Второе число: 1-3
     val number3: Int        // Третье число: 1-4
@@ -47,7 +47,7 @@ data class StorageCell(
      * Проверить корректность ячейки
      */
     fun isValid(): Boolean {
-        return letter in listOf('A', 'B', 'C', 'D', 'F', 'I', 'J', 'K', 'S') &&
+        return letter in listOf('A', 'B', 'C', 'D', 'F', 'I', 'J', 'K', 'S', 'Y') &&
                 number1 in 1..13 &&
                 number2 in 1..3 &&
                 number3 in 1..4
@@ -57,4 +57,4 @@ data class StorageCell(
 /**
  * Список всех доступных букв для ячеек хранения
  */
-val AVAILABLE_CELL_LETTERS = listOf('A', 'B', 'C', 'D', 'F', 'I', 'J', 'K', 'S')
+val AVAILABLE_CELL_LETTERS = listOf('A', 'B', 'C', 'D', 'F', 'I', 'J', 'K', 'S', 'Y')
