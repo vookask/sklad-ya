@@ -33,7 +33,7 @@ fun StorageCellSelectorDialog(
     var selectedNumber3 by remember { mutableStateOf<Int?>(null) }
 
     val numbers1 = (1..13).toList()
-    val numbers2 = (1..3).toList()
+    val numbers2 = (1..5).toList()
     val numbers3 = (1..4).toList()
 
     val isComplete = selectedLetter != null && selectedNumber1 != null &&
@@ -168,9 +168,9 @@ fun StorageCellSelectorDialog(
                     }
                 }
 
-                // Выбор числа 2 (1-3)
+                // Выбор числа 2 (1-5)
                 Text(
-                    text = "Число 2 (1-3):",
+                    text = "Число 2 (1-5):",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(bottom = 8.dp, top = 16.dp)

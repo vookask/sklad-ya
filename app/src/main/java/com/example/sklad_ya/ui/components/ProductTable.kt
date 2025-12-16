@@ -50,10 +50,7 @@ fun ProductTable(
             TableHeaderCell("Факт", Modifier.width(80.dp))
             TableHeaderCell("Статус", Modifier.width(80.dp))
             TableHeaderCell("Ячейки", Modifier.width(150.dp))
-            // Добавляем колонку "Остаток" если есть данные об остатках
-            if (products.any { it.fileStockQuantity > 0 }) {
-                TableHeaderCell("Остаток", Modifier.width(80.dp))
-            }
+            TableHeaderCell("Остаток", Modifier.width(80.dp))
         }
 
         // Разделитель заголовка
@@ -135,7 +132,6 @@ private fun ProductRow(
         )
 
         // Остаток из файла (показываем только если есть данные)
-        if (product.fileStockQuantity > 0) {
             TableCell(
                 text = if (product.fileStockQuantity % 1.0 == 0.0) {
                     product.fileStockQuantity.toInt().toString()
@@ -144,7 +140,6 @@ private fun ProductRow(
                 },
                 modifier = Modifier.width(80.dp)
             )
-        }
     }
 
     // Разделитель строк

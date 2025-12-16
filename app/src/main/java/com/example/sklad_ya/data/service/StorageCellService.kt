@@ -60,17 +60,19 @@ class StorageCellServiceImpl : StorageCellService {
 
     override fun getAvailableNumbers(letter: Char): List<Int> {
         return when (letter) {
-            in listOf('A', 'B', 'C', 'D', 'F', 'I', 'J', 'K', 'S') -> {
+            in listOf('A', 'B', 'C', 'D', 'F', 'G', 'I', 'J', 'K', 'S', 'Y') -> {
                 when (letter) {
                     'A' -> (1..13).toList()
                     'B' -> (1..13).toList()
                     'C' -> (1..13).toList()
                     'D' -> (1..13).toList()
                     'F' -> (1..13).toList()
+                    'G' -> (1..13).toList()
                     'I' -> (1..13).toList()
                     'J' -> (1..13).toList()
                     'K' -> (1..13).toList()
                     'S' -> (1..13).toList()
+                    'Y' -> (1..13).toList()
                     else -> emptyList()
                 }
             }
@@ -81,7 +83,7 @@ class StorageCellServiceImpl : StorageCellService {
     override fun isValidCell(cell: StorageCell): Boolean {
         return cell.letter in AVAILABLE_CELL_LETTERS &&
                 cell.number1 in 1..13 &&
-                cell.number2 in 1..3 &&
+                cell.number2 in 1..5 &&
                 cell.number3 in 1..4
     }
 
@@ -91,7 +93,7 @@ class StorageCellServiceImpl : StorageCellService {
         for (letter in AVAILABLE_CELL_LETTERS) {
             val maxNumber1 = 13
             for (number1 in 1..maxNumber1) {
-                for (number2 in 1..3) {
+                for (number2 in 1..5) {
                     for (number3 in 1..4) {
                         cells.add(StorageCell(letter, number1, number2, number3))
                     }
