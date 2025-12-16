@@ -184,6 +184,7 @@ class ExcelServiceImpl : ExcelService {
             "Факт",
             "Статус",
             "Ячейки",
+            "Комментарий",
             "Ед. изм.",
             "Штрихкод",
             "Цена",
@@ -201,6 +202,7 @@ class ExcelServiceImpl : ExcelService {
                 product.getFormattedActualQuantity(),
                 product.status.getSymbol(),
                 product.getStorageCellsDisplayString(),
+                product.comment,
                 product.unit,
                 product.barcode,
                 if (product.price > 0) product.price.toString() else "",
@@ -353,6 +355,7 @@ class ExcelServiceImpl : ExcelService {
 
         val barcode = getColumnValue(rowData, headers, "штрихкод", "штрих")
         val requiredQuantity = getColumnValue(rowData, headers, "кол-во", "количество", "колво").toDoubleOrNull() ?: 0.0
+        val comment = getColumnValue(rowData, headers, "комментарий", "коммент", "примечание")
 
         // Проверяем, есть ли колонка "Факт" в заголовках (для загрузки экспортированных файлов)
         val actualQuantity = if (headers.any { it.trim().lowercase() == "факт" }) {
@@ -429,7 +432,8 @@ class ExcelServiceImpl : ExcelService {
             comments = comments,
             rowIndex = rowIndex,
             storageCells = storageCells,
-            fileStockQuantity = fileStockQuantity
+            fileStockQuantity = fileStockQuantity,
+            comment = comment
         )
 
         // Определяем статус на основе данных
@@ -501,7 +505,7 @@ class ExcelServiceImpl : ExcelService {
     fun debugExcelColumns() {
         android.util.Log.d("EXCEL_DEBUG", "=== ДЕБАГ СТОЛБЦОВ ===")
         android.util.Log.d("EXCEL_DEBUG", "Проверяем соответствие названий столбцов")
-        val testHeaders = listOf("Артикул", "Товар", "Кол-во", "Остаток", "Штрихкод", "Ед.", "Ячейка")
+        val testHeaders = listOf("Артикул", "Товар", "Кол-во", "Остаток", "Штрихкод", "Ед.", "Ячейка", "Комментарий")
         val searchTerms = mapOf(
             "артикул" to listOf("артикул"),
             "товар" to listOf("товар", "наименование", "название", "работы", "услуги", "наименование товара"),
@@ -509,7 +513,8 @@ class ExcelServiceImpl : ExcelService {
             "ост" to listOf("остаток"),
             "штрих" to listOf("штрихкод", "штрих"),
             "ед" to listOf("ед.", "ед", "единица", "ед.изм"),
-            "ячейка" to listOf("ячейка", "хранение", "ячейки", "место хранения")
+            "ячейка" to listOf("ячейка", "хранение", "ячейки", "место хранения"),
+            "комментарий" to listOf("комментарий", "коммент", "примечание")
         )
 
         testHeaders.forEach { header ->
@@ -560,6 +565,7 @@ class ExcelServiceImpl : ExcelService {
                     lowerCell.contains("штрих") || lowerCell.contains("штрихкод") -> keywordMatches += 1.5
                     lowerCell.contains("ячейка") || lowerCell.contains("хранение") -> keywordMatches += 1.5
                     lowerCell.contains("остаток") -> keywordMatches += 1.5
+                    lowerCell.contains("комментарий") || lowerCell.contains("коммент") -> keywordMatches += 1.0
                 }
             }
 
@@ -664,6 +670,7 @@ class ExcelServiceImpl : ExcelService {
                 lower.contains("штрих") || lower.contains("штрихкод") -> matches += 1.0
                 lower.contains("ячейка") || lower.contains("хранение") -> matches += 1.0
                 lower.contains("остаток") -> matches += 1.0
+                lower.contains("комментарий") -> matches += 0.5
             }
         }
         return matches

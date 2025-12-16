@@ -17,7 +17,8 @@ data class Product(
     val comments: String = "",                  // Комментарии
     val rowIndex: Int = 0,                      // Индекс строки в исходном файле
     val originalData: Map<String, String> = emptyMap(), // Оригинальные данные из Excel
-    val fileStockQuantity: Double = 0.0         // Остаток из файла Excel
+    val fileStockQuantity: Double = 0.0,        // Остаток из файла Excel
+    val comment: String = ""                       // Комментарий к товару
 ) {
     /**
      * Обновить фактическое количество и пересчитать статус
@@ -95,6 +96,13 @@ data class Product(
         } else {
             storageCells.joinToString(", ") { it.toDisplayString() }
         }
+    }
+
+    /**
+     * Обновить комментарий к товару
+     */
+    fun updateComment(comment: String): Product {
+        return copy(comment = comment)
     }
 
     companion object {

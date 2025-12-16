@@ -47,7 +47,7 @@ data class StorageCell(
      * Проверить корректность ячейки
      */
     fun isValid(): Boolean {
-        return letter in listOf('A', 'B', 'C', 'D', 'F', 'I', 'J', 'K', 'S') &&
+        return letter in listOf('A', 'B', 'C', 'D', 'F', 'I', 'J', 'K', 'S', 'Y') &&
                 number1 in 1..13 &&
                 number2 in 1..3 &&
                 number3 in 1..4
