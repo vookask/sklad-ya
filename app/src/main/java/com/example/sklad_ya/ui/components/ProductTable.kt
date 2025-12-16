@@ -31,6 +31,7 @@ import kotlinx.coroutines.launch
 fun ProductTable(
     products: List<Product>,
     onProductQuantityUpdate: (String, Double) -> Unit,
+    onProductCommentsUpdate: (String, String) -> Unit,
     onStorageCellClick: (String, List<com.example.sklad_ya.data.model.StorageCell>) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -50,6 +51,7 @@ fun ProductTable(
             TableHeaderCell("Факт", Modifier.width(80.dp))
             TableHeaderCell("Статус", Modifier.width(80.dp))
             TableHeaderCell("Ячейки", Modifier.width(150.dp))
+            TableHeaderCell("Комментарии", Modifier.width(200.dp))
             TableHeaderCell("Остаток", Modifier.width(80.dp))
         }
 
@@ -64,6 +66,9 @@ fun ProductTable(
                     onQuantityChange = { quantity ->
                         android.util.Log.d("DEBUG", "ProductTable: onQuantityChange for product ${product.id}, quantity=$quantity")
                         onProductQuantityUpdate(product.id, quantity)
+                    },
+                    onCommentsChange = { comments ->
+                        onProductCommentsUpdate(product.id, comments)
                     },
                     onStorageCellClick = onStorageCellClick,
                     scrollState = horizontalScrollState
@@ -92,6 +97,7 @@ private fun TableHeaderCell(
 private fun ProductRow(
     product: Product,
     onQuantityChange: (Double) -> Unit,
+    onCommentsChange: (String) -> Unit,
     onStorageCellClick: (String, List<com.example.sklad_ya.data.model.StorageCell>) -> Unit,
     scrollState: androidx.compose.foundation.ScrollState
 ) {
@@ -129,6 +135,13 @@ private fun ProductRow(
             productCells = product.storageCells,
             modifier = Modifier.width(150.dp),
             multiLine = true
+        )
+
+        // Комментарии
+        EditableCommentsCell(
+            value = product.comments,
+            onValueChange = onCommentsChange,
+            modifier = Modifier.width(200.dp)
         )
 
         // Остаток из файла (показываем только если есть данные)
@@ -206,6 +219,48 @@ private fun EditableQuantityCell(
         singleLine = true,
         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
             keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+        )
+    )
+}
+
+@Composable
+private fun EditableCommentsCell(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var textValue by remember { mutableStateOf(value) }
+
+    BasicTextField(
+        value = textValue,
+        onValueChange = { newValue ->
+            textValue = newValue
+        },
+        modifier = modifier
+            .padding(4.dp)
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+            )
+            .background(
+                color = MaterialTheme.colorScheme.surface,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
+            )
+            .padding(8.dp)
+            .onFocusChanged { focusState ->
+                // Сохраняем значение при потере фокуса
+                if (!focusState.isFocused && textValue != value) {
+                    onValueChange(textValue)
+                }
+            },
+        textStyle = TextStyle(
+            color = MaterialTheme.colorScheme.onSurface,
+            fontSize = 12.sp,
+            textAlign = TextAlign.Start
+        ),
+        maxLines = 2,
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+            keyboardType = androidx.compose.ui.text.input.KeyboardType.Text
         )
     )
 }

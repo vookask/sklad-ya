@@ -14,6 +14,7 @@ data class Product(
     val storageCells: List<StorageCell> = emptyList(), // Ячейки хранения
     val unit: String = "",                      // Единица измерения
     val price: Double = 0.0,                    // Цена
+    val comments: String = "",                  // Комментарии
     val rowIndex: Int = 0,                      // Индекс строки в исходном файле
     val originalData: Map<String, String> = emptyMap(), // Оригинальные данные из Excel
     val fileStockQuantity: Double = 0.0         // Остаток из файла Excel
@@ -32,6 +33,13 @@ data class Product(
             actualQuantity = quantity,
             status = newStatus
         )
+    }
+
+    /**
+     * Обновить комментарии
+     */
+    fun updateComments(newComments: String): Product {
+        return copy(comments = newComments)
     }
 
     /**

@@ -187,6 +187,7 @@ class ExcelServiceImpl : ExcelService {
             "Ед. изм.",
             "Штрихкод",
             "Цена",
+            "Комментарии",
             "Остаток из файла"
         )
         result.add(headers)
@@ -203,6 +204,7 @@ class ExcelServiceImpl : ExcelService {
                 product.unit,
                 product.barcode,
                 if (product.price > 0) product.price.toString() else "",
+                product.comments,
                 if (product.fileStockQuantity > 0) {
                     if (product.fileStockQuantity % 1.0 == 0.0) {
                         product.fileStockQuantity.toInt().toString()
@@ -363,9 +365,10 @@ class ExcelServiceImpl : ExcelService {
         }
         val unit = getColumnValue(rowData, headers, "ед.", "ед", "единица", "ед.изм")
         val storageCellsStr = getColumnValue(rowData, headers, "ячейка", "хранение", "ячейки", "место хранения")
+        val comments = getColumnValue(rowData, headers, "комментарии", "комментарий", "коммент", "примечание", "заметки", "заметка")
         val fileStockQuantity = getColumnValue(rowData, headers, "остаток", "остатки").toDoubleOrNull() ?: 0.0
 
-        android.util.Log.d("EXCEL_DEBUG", "Извлечённые данные: артикул='$article', товар='$finalName', кол-во='$requiredQuantity', факт='$actualQuantity', ячейки='$storageCellsStr', остаток='$fileStockQuantity'")
+        android.util.Log.d("EXCEL_DEBUG", "Извлечённые данные: артикул='$article', товар='$finalName', кол-во='$requiredQuantity', факт='$actualQuantity', ячейки='$storageCellsStr', комментарии='$comments', остаток='$fileStockQuantity'")
 
         // Парсим ячейки хранения (могут быть через запятую)
         var storageCells = if (storageCellsStr.isNotBlank()) {
@@ -423,6 +426,7 @@ class ExcelServiceImpl : ExcelService {
             actualQuantity = actualQuantity, // Используем данные из колонки "Остаток"
             unit = unit,
             price = 0.0, // Цена не указана в структуре
+            comments = comments,
             rowIndex = rowIndex,
             storageCells = storageCells,
             fileStockQuantity = fileStockQuantity

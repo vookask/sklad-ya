@@ -180,6 +180,22 @@ class MainViewModel : ViewModel() {
     }
 
     /**
+     * Обновить комментарии товара
+     */
+    fun updateProductComments(productId: String, comments: String) {
+        val currentProducts = _products.value
+        val updatedProducts = currentProducts.map { product ->
+            if (product.id == productId) {
+                product.updateComments(comments)
+            } else {
+                product
+            }
+        }
+        _products.value = updatedProducts
+        applySearchFilter()
+    }
+
+    /**
      * Добавить ячейку хранения для товара
      */
     fun addStorageCellToProduct(productId: String, cellString: String) {
