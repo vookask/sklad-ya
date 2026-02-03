@@ -94,16 +94,37 @@ class ExcelServiceImpl : ExcelService {
             
                     // Вызываем отладочную функцию для проверки столбцов
                     debugExcelColumns()
-                    // Создаем продукты на основе данных
-                    val products = tableAnalysis.rows.mapIndexed { index, row ->
+                    // Создаем продукты на основе данных и валидируем их
+                    val allProducts = tableAnalysis.rows.mapIndexed { index, row ->
                         createProductFromRow(row, index, tableAnalysis.headers)
+                    }
+
+                    // Валидируем товары (Вариант B: мягкая валидация - пропускаем невалидные)
+                    val warnings = mutableListOf<String>()
+                    val validProducts = allProducts.filterNotNull().filter { product ->
+                        val validationResult = product.validate()
+                        if (validationResult.isFailure) {
+                            val error = validationResult.exceptionOrNull()?.message ?: "Ошибка валидации"
+                            warnings += "Строка ${product.rowIndex + 1}: $error"
+                            android.util.Log.w("EXCEL_VALIDATION", "Пропущен товар: ${product.article} - $error")
+                            false // Пропускаем невалидный товар
+                        } else {
+                            true
+                        }
+                    }
+
+                    // Логируем результаты валидации
+                    if (warnings.isNotEmpty()) {
+                        android.util.Log.w("EXCEL_VALIDATION", "Невалидных товаров: ${warnings.size}, валидных: ${validProducts.size}")
+                        warnings.forEach { android.util.Log.w("EXCEL_VALIDATION", it) }
                     }
 
                     val excelData = ExcelData(
                         fileName = filePath.substringAfterLast("/"),
                         sheetName = sheet.sheetName,
                         headers = tableAnalysis.headers,
-                        products = products
+                        products = validProducts,
+                        warnings = warnings
                     )
 
                     workbook.close()
@@ -187,7 +208,6 @@ class ExcelServiceImpl : ExcelService {
             "Комментарий",
             "Ед. изм.",
             "Штрихкод",
-            "Цена",
             "Комментарии",
             "Остаток из файла"
         )
@@ -205,7 +225,6 @@ class ExcelServiceImpl : ExcelService {
                 product.comment,
                 product.unit,
                 product.barcode,
-                if (product.price > 0) product.price.toString() else "",
                 product.comments,
                 if (product.fileStockQuantity > 0) {
                     if (product.fileStockQuantity % 1.0 == 0.0) {
@@ -238,8 +257,7 @@ class ExcelServiceImpl : ExcelService {
                 requiredQuantity = 10.0,
                 actualQuantity = 0.0,
                 status = ProductStatus.PENDING,
-                unit = "шт",
-                price = 50000.0
+                unit = "шт"
             ),
             Product(
                 article = "ART002",
@@ -248,8 +266,7 @@ class ExcelServiceImpl : ExcelService {
                 requiredQuantity = 5.0,
                 actualQuantity = 0.0,
                 status = ProductStatus.PENDING,
-                unit = "шт",
-                price = 75000.0
+                unit = "шт"
             ),
             Product(
                 article = "ART003",
@@ -258,8 +275,7 @@ class ExcelServiceImpl : ExcelService {
                 requiredQuantity = 20.0,
                 actualQuantity = 0.0,
                 status = ProductStatus.PENDING,
-                unit = "шт",
-                price = 15000.0
+                unit = "шт"
             ),
             Product(
                 article = "ART004",
@@ -268,8 +284,7 @@ class ExcelServiceImpl : ExcelService {
                 requiredQuantity = 8.0,
                 actualQuantity = 0.0,
                 status = ProductStatus.PENDING,
-                unit = "шт",
-                price = 8000.0
+                unit = "шт"
             ),
             Product(
                 article = "ART005",
@@ -278,8 +293,7 @@ class ExcelServiceImpl : ExcelService {
                 requiredQuantity = 15.0,
                 actualQuantity = 0.0,
                 status = ProductStatus.PENDING,
-                unit = "шт",
-                price = 2500.0
+                unit = "шт"
             )
         )
     }
@@ -428,7 +442,6 @@ class ExcelServiceImpl : ExcelService {
             requiredQuantity = requiredQuantity,
             actualQuantity = actualQuantity, // Используем данные из колонки "Остаток"
             unit = unit,
-            price = 0.0, // Цена не указана в структуре
             comments = comments,
             rowIndex = rowIndex,
             storageCells = storageCells,

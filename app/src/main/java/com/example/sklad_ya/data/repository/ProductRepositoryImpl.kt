@@ -52,8 +52,7 @@ class ProductRepositoryImpl(
                     product.name.contains(query, ignoreCase = true) ||
                     product.barcode.contains(query, ignoreCase = true) ||
                     product.getStorageCellsDisplayString().contains(query, ignoreCase = true) ||
-                    product.unit.contains(query, ignoreCase = true) ||
-                    product.price.toString().contains(query)
+                    product.unit.contains(query, ignoreCase = true)
                 }
             }
         }

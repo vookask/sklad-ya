@@ -10,7 +10,8 @@ data class ExcelData(
     val products: List<Product>,
     val originalRowIndex: Int = 0, // Индекс строки с заголовками в оригинальном файле
     val columnMapping: List<Int> = emptyList(), // Маппинг колонок для восстановления
-    val loadTime: Long = System.currentTimeMillis()
+    val loadTime: Long = System.currentTimeMillis(),
+    val warnings: List<String> = emptyList() // Предупреждения при загрузке
 )
 
 /**

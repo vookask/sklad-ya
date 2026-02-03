@@ -13,7 +13,6 @@ data class Product(
     val status: ProductStatus = ProductStatus.PENDING, // Статус приёмки
     val storageCells: List<StorageCell> = emptyList(), // Ячейки хранения
     val unit: String = "",                      // Единица измерения
-    val price: Double = 0.0,                    // Цена
     val comments: String = "",                  // Комментарии
     val rowIndex: Int = 0,                      // Индекс строки в исходном файле
     val originalData: Map<String, String> = emptyMap(), // Оригинальные данные из Excel
@@ -103,6 +102,40 @@ data class Product(
      */
     fun updateComment(comment: String): Product {
         return copy(comment = comment)
+    }
+
+    /**
+     * Валидировать данные товара
+     * @return Result<Product> - успех если всё валидно, иначе список ошибок
+     */
+    fun validate(): Result<Product> {
+        val errors = mutableListOf<String>()
+
+        // CRITICAL: Артикул не может быть пустым
+        if (article.isBlank()) {
+            errors += "Артикул не может быть пустым"
+        }
+
+        // CRITICAL: Требуемое количество не может быть отрицательным
+        if (requiredQuantity < 0) {
+            errors += "Требуемое количество не может быть отрицательным (текущее: $requiredQuantity)"
+        }
+
+        // WARNING: Фактическое количество не может быть отрицательным
+        if (actualQuantity < 0) {
+            errors += "Фактическое количество не может быть отрицательным (текущее: $actualQuantity)"
+        }
+
+        // WARNING: Название товара желательно заполнить
+        if (name.isBlank()) {
+            errors += "Название товара не указано"
+        }
+
+        return if (errors.isEmpty()) {
+            Result.success(this)
+        } else {
+            Result.failure(IllegalArgumentException(errors.joinToString("; ")))
+        }
     }
 
     companion object {

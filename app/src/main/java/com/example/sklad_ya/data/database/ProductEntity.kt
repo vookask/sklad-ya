@@ -21,7 +21,6 @@ data class ProductEntity(
     val status: String,             // ProductStatus.name()
     val storageCellsJson: String,    // JSON сериализация List<StorageCell>
     val unit: String,
-    val price: Double,
     val comments: String,
     val comment: String,
     val fileStockQuantity: Double,

@@ -41,9 +41,27 @@ class MainViewModel @Inject constructor(
     private val storageCellService: StorageCellService
 ) : ViewModel() {
 
+    companion object {
+        private const val MAX_DEBUG_LOG_SIZE = 100
+    }
+
     // Debug логи для отладки
     private val _debugLogs = MutableStateFlow<List<String>>(emptyList())
     val debugLogs: StateFlow<List<String>> = _debugLogs.asStateFlow()
+
+    /**
+     * Добавить сообщение в debug логи с ограничением размера
+     */
+    private fun addDebugLog(message: String) {
+        val current = _debugLogs.value
+        val updated = if (current.size >= MAX_DEBUG_LOG_SIZE) {
+            // Удаляем самый старый лог
+            current.drop(1) + message
+        } else {
+            current + message
+        }
+        _debugLogs.value = updated
+    }
 
     // Состояние загрузки файла
     private val _fileLoadState = MutableStateFlow<FileLoadState>(FileLoadState.Idle)
@@ -104,6 +122,17 @@ class MainViewModel @Inject constructor(
                                 _products.value = excelData.products
                                 _searchQuery.value = "" // Сбрасываем поисковый запрос при загрузке нового файла
                                 _filteredProducts.value = excelData.products
+
+                                // Логируем предупреждения если есть
+                                if (excelData.warnings.isNotEmpty()) {
+                                    val warningMessage = "Загружено ${excelData.products.size} товаров. " +
+                                            "Пропущено ${excelData.warnings.size} некорректных.\n\n" +
+                                            "Пропущенные:\n" + excelData.warnings.take(5).joinToString("\n") +
+                                            if (excelData.warnings.size > 5) "\n... и ещё ${excelData.warnings.size - 5}" else ""
+                                    android.util.Log.w("MainViewModel", "Предупреждения при загрузке: $warningMessage")
+                                    // TODO: Можно показать warning в UI через Snackbar
+                                }
+
                                 _fileLoadState.value = FileLoadState.Success(excelData)
                             },
                             onFailure = { exception ->
@@ -134,8 +163,7 @@ class MainViewModel @Inject constructor(
                 requiredQuantity = 10.0,
                 actualQuantity = 0.0,
                 status = ProductStatus.PENDING,
-                unit = "шт",
-                price = 50000.0
+                unit = "шт"
             ),
             Product(
                 article = "ART002",
@@ -144,8 +172,7 @@ class MainViewModel @Inject constructor(
                 requiredQuantity = 5.0,
                 actualQuantity = 0.0,
                 status = ProductStatus.PENDING,
-                unit = "шт",
-                price = 75000.0
+                unit = "шт"
             )
         )
         _filteredProducts.value = _products.value
@@ -158,14 +185,14 @@ class MainViewModel @Inject constructor(
         val currentProducts = _products.value
         val logMessage = "updateProductQuantity: productId=$productId, quantity=$quantity, currentProducts.size=${currentProducts.size}"
         android.util.Log.d("DEBUG", logMessage)
-        _debugLogs.value = _debugLogs.value + logMessage
+        addDebugLog(logMessage)
 
         val updatedProducts = currentProducts.map { product ->
             if (product.id == productId) {
                 val updated = product.updateActualQuantity(quantity)
                 val updateLog = "updateProductQuantity: updated product ${product.id}, actualQuantity: ${product.actualQuantity} -> ${updated.actualQuantity}"
                 android.util.Log.d("DEBUG", updateLog)
-                _debugLogs.value = _debugLogs.value + updateLog
+                addDebugLog(updateLog)
                 updated
             } else {
                 product
@@ -406,13 +433,13 @@ class MainViewModel @Inject constructor(
          val allProducts = _products.value
          val logMessage = "applySearchFilter: query='$query', allProducts.size=${allProducts.size}"
          android.util.Log.d("DEBUG", logMessage)
-         _debugLogs.value = _debugLogs.value + logMessage
+         addDebugLog(logMessage)
 
          if (query.isBlank()) {
              _filteredProducts.value = allProducts
              val noQueryLog = "applySearchFilter: no query, filteredProducts.size=${_filteredProducts.value.size}"
              android.util.Log.d("DEBUG", noQueryLog)
-             _debugLogs.value = _debugLogs.value + noQueryLog
+             addDebugLog(noQueryLog)
          } else {
              val filtered = allProducts.filter { product ->
                  // Поиск по артикулу
@@ -424,14 +451,12 @@ class MainViewModel @Inject constructor(
                  // Поиск по ячейкам хранения
                  product.getStorageCellsDisplayString().contains(query, ignoreCase = true) ||
                  // Поиск по единице измерения
-                 product.unit.contains(query, ignoreCase = true) ||
-                 // Поиск по цене (если цена содержит запрос как строку)
-                 product.price.toString().contains(query)
+                 product.unit.contains(query, ignoreCase = true)
              }
              _filteredProducts.value = filtered
              val filterLog = "applySearchFilter: filtered.size=${filtered.size}, first actualQuantity=${filtered.firstOrNull()?.actualQuantity ?: "none"}"
              android.util.Log.d("DEBUG", filterLog)
-             _debugLogs.value = _debugLogs.value + filterLog
+             addDebugLog(filterLog)
          }
      }
 
