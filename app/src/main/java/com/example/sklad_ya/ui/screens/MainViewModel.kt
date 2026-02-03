@@ -123,6 +123,16 @@ class MainViewModel @Inject constructor(
                                 _searchQuery.value = "" // Сбрасываем поисковый запрос при загрузке нового файла
                                 _filteredProducts.value = excelData.products
 
+                                // АВТОСОХРАНЕНИЕ: сохраняем все товары в БД
+                                viewModelScope.launch {
+                                    try {
+                                        productRepository.clearAndSaveAll(excelData.products)
+                                        android.util.Log.d("MainViewModel", "Автосохранение: ${excelData.products.size} товаров сохранено в БД")
+                                    } catch (e: Exception) {
+                                        android.util.Log.e("MainViewModel", "Ошибка автосохранения: ${e.message}", e)
+                                    }
+                                }
+
                                 // Логируем предупреждения если есть
                                 if (excelData.warnings.isNotEmpty()) {
                                     val warningMessage = "Загружено ${excelData.products.size} товаров. " +

@@ -38,10 +38,50 @@ interface ProductDao {
     suspend fun insertProducts(products: List<ProductEntity>)
     
     /**
-     * Обновить товар
+     * Обновить товар (по первичному ключу id - не работает для наших задач!)
+     * Вместо этого используем updateProductByProductId
      */
     @Update
     suspend fun updateProduct(product: ProductEntity)
+
+    /**
+     * Обновить товар по productId (правильный метод для обновления)
+     */
+    @Query("""
+        UPDATE products SET
+            article = :article,
+            name = :name,
+            barcode = :barcode,
+            requiredQuantity = :requiredQuantity,
+            actualQuantity = :actualQuantity,
+            status = :status,
+            storageCellsJson = :storageCellsJson,
+            unit = :unit,
+            comments = :comments,
+            comment = :comment,
+            fileStockQuantity = :fileStockQuantity,
+            rowIndex = :rowIndex,
+            originalDataJson = :originalDataJson,
+            updatedAt = :updatedAt
+        WHERE productId = :productId
+    """)
+    suspend fun updateProductByProductId(
+        productId: String,
+        article: String,
+        name: String,
+        barcode: String,
+        requiredQuantity: Double,
+        actualQuantity: Double,
+        status: String,
+        storageCellsJson: String,
+        unit: String,
+        comments: String,
+        comment: String,
+        fileStockQuantity: Double,
+        rowIndex: Int,
+        originalDataJson: String,
+        updatedAt: Long
+    )
     
     /**
      * Удалить товар по productId

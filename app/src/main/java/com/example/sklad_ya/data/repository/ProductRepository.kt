@@ -38,6 +38,11 @@ interface ProductRepository {
     suspend fun clearAllProducts()
 
     /**
+     * Очистить старые данные и сохранить новый список товаров (для автосохранения при загрузке Excel)
+     */
+    suspend fun clearAndSaveAll(products: List<Product>)
+
+    /**
      * Поиск товаров по запросу
      */
     fun searchProducts(query: String): Flow<List<Product>>

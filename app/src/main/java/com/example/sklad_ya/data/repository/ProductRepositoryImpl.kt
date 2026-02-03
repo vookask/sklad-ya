@@ -31,7 +31,25 @@ class ProductRepositoryImpl(
     }
 
     override suspend fun updateProduct(product: Product) {
-        productDao.updateProduct(product.toEntity())
+        val entity = product.toEntity()
+        // Используем updateProductByProductId вместо updateProduct (который ищет по id, а не по productId)
+        productDao.updateProductByProductId(
+            productId = entity.productId,
+            article = entity.article,
+            name = entity.name,
+            barcode = entity.barcode,
+            requiredQuantity = entity.requiredQuantity,
+            actualQuantity = entity.actualQuantity,
+            status = entity.status,
+            storageCellsJson = entity.storageCellsJson,
+            unit = entity.unit,
+            comments = entity.comments,
+            comment = entity.comment,
+            fileStockQuantity = entity.fileStockQuantity,
+            rowIndex = entity.rowIndex,
+            originalDataJson = entity.originalDataJson,
+            updatedAt = entity.updatedAt
+        )
     }
 
     override suspend fun deleteProduct(productId: String) {
@@ -40,6 +58,14 @@ class ProductRepositoryImpl(
 
     override suspend fun clearAllProducts() {
         productDao.deleteAllProducts()
+    }
+
+    override suspend fun clearAndSaveAll(products: List<Product>) {
+        // Сначала очищаем старые данные
+        productDao.deleteAllProducts()
+        // Пакетное сохранение всех новых товаров (быстрее чем по одному)
+        val entities = products.map { it.toEntity() }
+        productDao.insertProducts(entities)
     }
 
     override fun searchProducts(query: String): Flow<List<Product>> {
