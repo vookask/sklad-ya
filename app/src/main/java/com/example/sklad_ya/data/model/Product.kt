@@ -106,9 +106,9 @@ data class Product(
     }
 
     companion object {
-        private var idCounter = 0
+        private val idCounter = java.util.concurrent.atomic.AtomicInteger(0)
         private fun generateId(): String {
-            return "product_${idCounter++}"
+            return "product_${idCounter.getAndIncrement()}"
         }
     }
 }

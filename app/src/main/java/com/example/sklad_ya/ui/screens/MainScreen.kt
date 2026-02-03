@@ -18,6 +18,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import dagger.hilt.android.lifecycle.HiltViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.sklad_ya.data.model.StorageCell
@@ -30,7 +32,7 @@ import com.example.sklad_ya.ui.components.StorageCellSelectorDialog
 @Composable
 fun MainScreen(
     navController: NavController,
-    viewModel: MainViewModel = viewModel()
+    viewModel: MainViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
 
@@ -53,7 +55,7 @@ fun MainScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     // Debug логи
-    val debugLogs by viewModel.debugLogsFlow.collectAsState()
+    val debugLogs by viewModel.debugLogs.collectAsState()
     var showDebugDialog by remember { mutableStateOf(false) }
 
     // Обработка состояния экспорта

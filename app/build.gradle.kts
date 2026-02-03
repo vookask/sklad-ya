@@ -2,6 +2,8 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.hilt.android)
 }
 
 android {
@@ -40,20 +42,30 @@ android {
 }
 
 dependencies {
-
+   
+    implementation(libs.gson)
+    
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
-
+    
     // Material Icons Extended для дополнительных иконок
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.navigation.compose)
-
+    
     // Room для базы данных
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+    
+    // Hilt для внедрения зависимостей
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
+    
+    // Hilt Navigation Compose
+    implementation(libs.androidx.hilt.navigation.compose)
 
     // Apache POI для работы с Excel
     implementation("org.apache.poi:poi:5.2.5")

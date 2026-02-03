@@ -1,26 +1,23 @@
 package com.example.sklad_ya.ui.screens
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.sklad_ya.data.model.ExcelData
 import com.example.sklad_ya.data.model.FileLoadState
 import com.example.sklad_ya.data.model.Product
 import com.example.sklad_ya.data.model.ProductStatus
+import com.example.sklad_ya.data.repository.ProductRepository
 import com.example.sklad_ya.data.service.ExcelService
-import com.example.sklad_ya.data.service.ExcelServiceImpl
 import com.example.sklad_ya.data.service.FileService
-import com.example.sklad_ya.data.service.FileServiceImpl
 import com.example.sklad_ya.data.service.SearchService
-import com.example.sklad_ya.data.service.SearchServiceImpl
 import com.example.sklad_ya.data.service.StorageCellService
-import com.example.sklad_ya.data.service.StorageCellServiceImpl
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-
-// Debug logs для диагностики
-private val debugLogs = MutableStateFlow<List<String>>(emptyList())
+import javax.inject.Inject
 
 /**
  * Состояние экспорта данных
@@ -35,13 +32,18 @@ sealed class ExportState {
 /**
  * ViewModel главного экрана приложения
  */
-class MainViewModel : ViewModel() {
+@HiltViewModel
+class MainViewModel @Inject constructor(
+    private val productRepository: ProductRepository,
+    private val excelService: ExcelService,
+    private val fileService: FileService,
+    private val searchService: SearchService,
+    private val storageCellService: StorageCellService
+) : ViewModel() {
 
-    // Сервисы
-    private val excelService: ExcelService = ExcelServiceImpl()
-    private val fileService: FileService = FileServiceImpl()
-    private val searchService: SearchService = SearchServiceImpl()
-    private val storageCellService: StorageCellService = StorageCellServiceImpl()
+    // Debug логи для отладки
+    private val _debugLogs = MutableStateFlow<List<String>>(emptyList())
+    val debugLogs: StateFlow<List<String>> = _debugLogs.asStateFlow()
 
     // Состояние загрузки файла
     private val _fileLoadState = MutableStateFlow<FileLoadState>(FileLoadState.Idle)
@@ -63,14 +65,11 @@ class MainViewModel : ViewModel() {
     private val _exportState = MutableStateFlow<ExportState>(ExportState.Idle)
     val exportState: StateFlow<ExportState> = _exportState.asStateFlow()
 
-    // Debug logs для отображения в UI
-    val debugLogsFlow: StateFlow<List<String>> = debugLogs.asStateFlow()
-
     init {
+        android.util.Log.d("MainViewModel", "MainViewModel init started")
         // При инициализации загружаем сохранённые данные
         loadSavedData()
-        // Загружаем тестовые данные для демонстрации
-        loadTestData()
+        android.util.Log.d("MainViewModel", "MainViewModel init completed")
     }
 
     /**
@@ -153,34 +152,40 @@ class MainViewModel : ViewModel() {
     }
 
     /**
-     * Обновить фактическое количество товара
+     * Обновить фактическое количество товара и сохранить в БД
      */
     fun updateProductQuantity(productId: String, quantity: Double) {
         val currentProducts = _products.value
         val logMessage = "updateProductQuantity: productId=$productId, quantity=$quantity, currentProducts.size=${currentProducts.size}"
         android.util.Log.d("DEBUG", logMessage)
-        debugLogs.value = debugLogs.value + logMessage
+        _debugLogs.value = _debugLogs.value + logMessage
 
         val updatedProducts = currentProducts.map { product ->
             if (product.id == productId) {
                 val updated = product.updateActualQuantity(quantity)
                 val updateLog = "updateProductQuantity: updated product ${product.id}, actualQuantity: ${product.actualQuantity} -> ${updated.actualQuantity}"
                 android.util.Log.d("DEBUG", updateLog)
-                debugLogs.value = debugLogs.value + updateLog
+                _debugLogs.value = _debugLogs.value + updateLog
                 updated
             } else {
                 product
             }
         }
         _products.value = updatedProducts
-        val finalLog = "updateProductQuantity: updated _products.value"
-        android.util.Log.d("DEBUG", finalLog)
-        debugLogs.value = debugLogs.value + finalLog
+        
+        // Сохраняем через Repository
+        val product = updatedProducts.find { it.id == productId }
+        if (product != null) {
+            viewModelScope.launch {
+                productRepository.updateProduct(product)
+            }
+        }
+        
         applySearchFilter()
     }
 
     /**
-     * Обновить комментарии товара
+     * Обновить комментарии товара и сохранить в БД
      */
     fun updateProductComments(productId: String, comments: String) {
         val currentProducts = _products.value
@@ -192,11 +197,20 @@ class MainViewModel : ViewModel() {
             }
         }
         _products.value = updatedProducts
+        
+        // Сохраняем через Repository
+        val product = updatedProducts.find { it.id == productId }
+        if (product != null) {
+            viewModelScope.launch {
+                productRepository.updateProduct(product)
+            }
+        }
+        
         applySearchFilter()
     }
 
     /**
-     * Добавить ячейку хранения для товара
+     * Добавить ячейку хранения для товара и сохранить в БД
      */
     fun addStorageCellToProduct(productId: String, cellString: String) {
         val currentProducts = _products.value
@@ -213,7 +227,16 @@ class MainViewModel : ViewModel() {
             }
         }
         _products.value = updatedProducts
-        applySearchFilter() // Обновляем отфильтрованный список после добавления ячейки
+        
+        // Сохраняем через Repository
+        val product = updatedProducts.find { it.id == productId }
+        if (product != null) {
+            viewModelScope.launch {
+                productRepository.updateProduct(product)
+            }
+        }
+        
+        applySearchFilter()
     }
 
     /**
@@ -345,22 +368,27 @@ class MainViewModel : ViewModel() {
     }
 
     /**
-     * Очистить все данные
+     * Очистить все данные и БД
      */
     fun clearAllData() {
+        viewModelScope.launch {
+            // Очищаем БД через Repository
+            productRepository.clearAllProducts()
+        }
+        
         _products.value = emptyList()
         _filteredProducts.value = emptyList()
         _searchQuery.value = ""
         _fileLoadState.value = FileLoadState.Idle
         _exportState.value = ExportState.Idle
-        debugLogs.value = emptyList()
+        _debugLogs.value = emptyList()
     }
 
     /**
      * Получить все debug логи как строку
      */
     fun getDebugLogsAsString(): String {
-        return debugLogs.value.joinToString("\n")
+        return _debugLogs.value.joinToString("\n")
     }
 
     /**
@@ -378,13 +406,13 @@ class MainViewModel : ViewModel() {
          val allProducts = _products.value
          val logMessage = "applySearchFilter: query='$query', allProducts.size=${allProducts.size}"
          android.util.Log.d("DEBUG", logMessage)
-         debugLogs.value = debugLogs.value + logMessage
+         _debugLogs.value = _debugLogs.value + logMessage
 
          if (query.isBlank()) {
              _filteredProducts.value = allProducts
              val noQueryLog = "applySearchFilter: no query, filteredProducts.size=${_filteredProducts.value.size}"
              android.util.Log.d("DEBUG", noQueryLog)
-             debugLogs.value = debugLogs.value + noQueryLog
+             _debugLogs.value = _debugLogs.value + noQueryLog
          } else {
              val filtered = allProducts.filter { product ->
                  // Поиск по артикулу
@@ -403,15 +431,39 @@ class MainViewModel : ViewModel() {
              _filteredProducts.value = filtered
              val filterLog = "applySearchFilter: filtered.size=${filtered.size}, first actualQuantity=${filtered.firstOrNull()?.actualQuantity ?: "none"}"
              android.util.Log.d("DEBUG", filterLog)
-             debugLogs.value = debugLogs.value + filterLog
+             _debugLogs.value = _debugLogs.value + filterLog
          }
      }
 
     /**
-     * Загрузить сохранённые данные (заглушка для будущего функционала)
+     * Загрузить сохранённые данные из Room Database
      */
     private fun loadSavedData() {
-        // TODO: Реализовать загрузку из локальной базы данных или SharedPreferences
-        _filteredProducts.value = emptyList()
+        viewModelScope.launch {
+            try {
+                android.util.Log.d("MainViewModel", "loadSavedData: Starting to load data from database")
+                productRepository.getAllProducts().collect { products ->
+                    android.util.Log.d("MainViewModel", "loadSavedData: Received ${products.size} products from database")
+                    if (products.isNotEmpty()) {
+                        _products.value = products
+                        _filteredProducts.value = products
+                        _fileLoadState.value = FileLoadState.Success(
+                            ExcelData(
+                                fileName = "Сохранённые данные",
+                                sheetName = "Лист1",
+                                headers = listOf("Артикул", "Товар", "Кол-во", "Факт", "Статус", "Ячейки"),
+                                products = products
+                            )
+                        )
+                        android.util.Log.d("DATABASE", "Загружено ${products.size} товаров из базы данных")
+                    } else {
+                        android.util.Log.d("MainViewModel", "loadSavedData: No products in database")
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("MainViewModel", "loadSavedData: Error loading data from database", e)
+                _fileLoadState.value = FileLoadState.Error("Ошибка загрузки данных: ${e.message}")
+            }
+        }
     }
 }
