@@ -3,10 +3,13 @@ package com.example.sklad_ya.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,9 +28,13 @@ import com.example.sklad_ya.data.model.AVAILABLE_CELL_LETTERS
 fun StorageCellSelectorDialog(
     onDismiss: () -> Unit,
     onCellSelected: (StorageCell) -> Unit,
+    onSettingsClick: () -> Unit = {},
+    onCellDeleted: (StorageCell) -> Unit = {},
     currentCells: List<StorageCell> = emptyList()
 ) {
     var selectedLetter by remember { mutableStateOf<Char?>(null) }
+    var cellToDelete by remember { mutableStateOf<StorageCell?>(null) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
     var selectedNumber1 by remember { mutableStateOf<Int?>(null) }
     var selectedNumber2 by remember { mutableStateOf<Int?>(null) }
     var selectedNumber3 by remember { mutableStateOf<Int?>(null) }
@@ -59,12 +66,28 @@ fun StorageCellSelectorDialog(
                     .fillMaxWidth()
                     .padding(16.dp)
             ) {
-                Text(
-                    text = "Выберите ячейку",
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
+                // Заголовок с кнопкой настроек
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Добавить ячейку",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    IconButton(onClick = onSettingsClick) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Настройки ячеек",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
 
                 // Выбор буквы
                 Text(
@@ -268,6 +291,72 @@ fun StorageCellSelectorDialog(
                     }
                 }
 
+                // Разделитель
+                Divider(
+                    modifier = Modifier.padding(vertical = 16.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
+
+                // Текущие ячейки
+                Text(
+                    text = "Текущие ячейки:",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                if (currentCells.isEmpty()) {
+                    // Нет ячеек
+                    Text(
+                        text = "Нет ячеек",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                } else {
+                    // Список текущих ячеек
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(3),
+                        contentPadding = PaddingValues(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.heightIn(max = 200.dp)
+                    ) {
+                        items(currentCells) { cell ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        cellToDelete = cell
+                                        showDeleteDialog = true
+                                    },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                                ),
+                                border = BorderStroke(
+                                    width = 1.dp,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(12.dp)
+                                        .fillMaxWidth(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = cell.toDisplayString(),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Кнопки действий
                 Row(
                     modifier = Modifier
@@ -303,6 +392,46 @@ fun StorageCellSelectorDialog(
                     }
                 }
             }
+        }
+
+        // Диалог подтверждения удаления ячейки
+        if (showDeleteDialog && cellToDelete != null) {
+            AlertDialog(
+                onDismissRequest = {
+                    showDeleteDialog = false
+                    cellToDelete = null
+                },
+                title = {
+                    Text("Удалить ячейку?")
+                },
+                text = {
+                    Text("Ячейка ${cellToDelete!!.toDisplayString()} будет удалена из списка.")
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            onCellDeleted(cellToDelete!!)
+                            showDeleteDialog = false
+                            cellToDelete = null
+                        },
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text("Удалить", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            showDeleteDialog = false
+                            cellToDelete = null
+                        }
+                    ) {
+                        Text("Отмена")
+                    }
+                }
+            )
         }
     }
 }

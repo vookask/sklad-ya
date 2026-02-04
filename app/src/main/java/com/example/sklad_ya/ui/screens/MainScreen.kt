@@ -267,6 +267,14 @@ fun MainScreen(
                     viewModel.addStorageCellToProduct(productId, newCell.toDisplayString())
                 }
             },
+            onSettingsClick = {
+                // TODO: Открыть диалог настроек ячеек
+            },
+            onCellDeleted = { cellToDelete ->
+                selectedProductId?.let { productId ->
+                    viewModel.removeStorageCellFromProduct(productId, cellToDelete.toDisplayString())
+                }
+            },
             currentCells = currentStorageCells
         )
     }

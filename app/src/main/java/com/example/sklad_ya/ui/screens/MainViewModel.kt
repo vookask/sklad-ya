@@ -277,6 +277,31 @@ class MainViewModel @Inject constructor(
     }
 
     /**
+     * Удалить ячейку хранения для товара и сохранить в БД
+     */
+    fun removeStorageCellFromProduct(productId: String, cellString: String) {
+        val currentProducts = _products.value
+        val updatedProducts = currentProducts.map { product ->
+            if (product.id == productId) {
+                product.removeStorageCell(cellString)
+            } else {
+                product
+            }
+        }
+        _products.value = updatedProducts
+
+        // Сохраняем через Repository
+        val product = updatedProducts.find { it.id == productId }
+        if (product != null) {
+            viewModelScope.launch {
+                productRepository.updateProduct(product)
+            }
+        }
+
+        applySearchFilter()
+    }
+
+    /**
      * Обновить поисковый запрос
      */
     fun updateSearchQuery(query: String) {
