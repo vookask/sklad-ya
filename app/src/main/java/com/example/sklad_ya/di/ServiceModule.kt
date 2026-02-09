@@ -1,5 +1,7 @@
 package com.example.sklad_ya.di
 
+import android.content.Context
+import com.example.sklad_ya.data.preferences.CellSettingsPreferences
 import com.example.sklad_ya.data.service.ExcelService
 import com.example.sklad_ya.data.service.ExcelServiceImpl
 import com.example.sklad_ya.data.service.FileService
@@ -11,6 +13,7 @@ import com.example.sklad_ya.data.service.StorageCellServiceImpl
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
@@ -56,5 +59,16 @@ object ServiceModule {
     @Singleton
     fun provideStorageCellService(): StorageCellService {
         return StorageCellServiceImpl()
+    }
+
+    /**
+     * Предоставляет менеджер для сохранения настроек ячеек
+     */
+    @Provides
+    @Singleton
+    fun provideCellSettingsPreferences(
+        @ApplicationContext context: Context
+    ): CellSettingsPreferences {
+        return CellSettingsPreferences(context)
     }
 }

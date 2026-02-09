@@ -13,7 +13,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  */
 @Database(
     entities = [ProductEntity::class, StorageCellEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -75,6 +75,48 @@ abstract class SkladDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Миграция с версии 2 на версию 3
+         * Изменение колонки letter на letterGroup в таблице storage_cells
+         */
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Проверяем, существует ли таблица storage_cells
+                val tableName = "storage_cells"
+                val cursor = db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='$tableName'")
+
+                if (cursor.count > 0) {
+                    cursor.close()
+
+                    // Создаём новую таблицу с колонкой letterGroup вместо letter
+                    db.execSQL("""
+                        CREATE TABLE storage_cells_new (
+                            cellString TEXT PRIMARY KEY NOT NULL,
+                            letterGroup TEXT NOT NULL,
+                            number1 INTEGER NOT NULL,
+                            number2 INTEGER NOT NULL,
+                            number3 INTEGER NOT NULL
+                        )
+                    """.trimIndent())
+
+                    // Копируем данные из старой таблицы в новую (преобразуя letter в letterGroup)
+                    db.execSQL("""
+                        INSERT INTO storage_cells_new (cellString, letterGroup, number1, number2, number3)
+                        SELECT cellString, letter, number1, number2, number3
+                        FROM storage_cells
+                    """.trimIndent())
+
+                    // Удаляем старую таблицу
+                    db.execSQL("DROP TABLE storage_cells")
+
+                    // Переименовываем новую таблицу
+                    db.execSQL("ALTER TABLE storage_cells_new RENAME TO storage_cells")
+                } else {
+                    cursor.close()
+                }
+            }
+        }
+
         @Volatile
         private var INSTANCE: SkladDatabase? = null
 
@@ -88,7 +130,7 @@ abstract class SkladDatabase : RoomDatabase() {
                     SkladDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                 INSTANCE = instance
                 instance

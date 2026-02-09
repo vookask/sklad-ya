@@ -1,21 +1,15 @@
 package com.example.sklad_ya.data.service
 
 import com.example.sklad_ya.data.model.StorageCell
-import com.example.sklad_ya.data.model.AVAILABLE_CELL_LETTERS
 
 /**
  * Сервис для работы с ячейками хранения
  */
 interface StorageCellService {
     /**
-     * Получить все доступные варианты букв
+     * Получить все доступные варианты групп букв
      */
-    fun getAvailableLetters(): List<Char>
-
-    /**
-     * Получить доступные номера для указанной буквы
-     */
-    fun getAvailableNumbers(letter: Char): List<Int>
+    fun getAvailableLetterGroups(): List<String>
 
     /**
      * Проверить корректность ячейки
@@ -24,8 +18,17 @@ interface StorageCellService {
 
     /**
      * Получить все возможные комбинации ячеек
+     * @param letterGroups Список групп букв
+     * @param number1Range Диапазон для первого числа
+     * @param number2Range Диапазон для второго числа
+     * @param number3Range Диапазон для третьего числа
      */
-    fun getAllPossibleCells(): List<StorageCell>
+    fun getAllPossibleCells(
+        letterGroups: List<String>,
+        number1Range: IntRange = 1..13,
+        number2Range: IntRange = 1..5,
+        number3Range: IntRange = 1..4
+    ): List<StorageCell>
 
     /**
      * Найти ячейку по строковому представлению
@@ -54,48 +57,28 @@ interface StorageCellService {
 class StorageCellServiceImpl : StorageCellService {
     private val occupiedCells = mutableMapOf<StorageCell, String>() // cell -> productId
 
-    override fun getAvailableLetters(): List<Char> {
-        return AVAILABLE_CELL_LETTERS
-    }
-
-    override fun getAvailableNumbers(letter: Char): List<Int> {
-        return when (letter) {
-            in listOf('A', 'B', 'C', 'D', 'F', 'G', 'I', 'J', 'K', 'S', 'Y') -> {
-                when (letter) {
-                    'A' -> (1..13).toList()
-                    'B' -> (1..13).toList()
-                    'C' -> (1..13).toList()
-                    'D' -> (1..13).toList()
-                    'F' -> (1..13).toList()
-                    'G' -> (1..13).toList()
-                    'I' -> (1..13).toList()
-                    'J' -> (1..13).toList()
-                    'K' -> (1..13).toList()
-                    'S' -> (1..13).toList()
-                    'Y' -> (1..13).toList()
-                    else -> emptyList()
-                }
-            }
-            else -> emptyList()
-        }
+    override fun getAvailableLetterGroups(): List<String> {
+        // TODO: Загружать из настроек или БД
+        return listOf("A", "B", "C", "D", "F", "G", "I", "J", "K", "S", "Y")
     }
 
     override fun isValidCell(cell: StorageCell): Boolean {
-        return cell.letter in AVAILABLE_CELL_LETTERS &&
-                cell.number1 in 1..13 &&
-                cell.number2 in 1..5 &&
-                cell.number3 in 1..4
+        return cell.isValid()
     }
 
-    override fun getAllPossibleCells(): List<StorageCell> {
+    override fun getAllPossibleCells(
+        letterGroups: List<String>,
+        number1Range: IntRange,
+        number2Range: IntRange,
+        number3Range: IntRange
+    ): List<StorageCell> {
         val cells = mutableListOf<StorageCell>()
 
-        for (letter in AVAILABLE_CELL_LETTERS) {
-            val maxNumber1 = 13
-            for (number1 in 1..maxNumber1) {
-                for (number2 in 1..5) {
-                    for (number3 in 1..4) {
-                        cells.add(StorageCell(letter, number1, number2, number3))
+        for (letterGroup in letterGroups) {
+            for (number1 in number1Range) {
+                for (number2 in number2Range) {
+                    for (number3 in number3Range) {
+                        cells.add(StorageCell(letterGroup, number1, number2, number3))
                     }
                 }
             }
@@ -105,23 +88,7 @@ class StorageCellServiceImpl : StorageCellService {
     }
 
     override fun parseCell(cellString: String): StorageCell? {
-        return try {
-            val regex = Regex("([A-Z])(\\d+)-(\\d+)-(\\d+)")
-            val match = regex.find(cellString.trim())
-            if (match != null) {
-                val (letter, num1, num2, num3) = match.destructured
-                StorageCell(
-                    letter = letter.first(),
-                    number1 = num1.toInt(),
-                    number2 = num2.toInt(),
-                    number3 = num3.toInt()
-                )
-            } else {
-                null
-            }
-        } catch (e: Exception) {
-            null
-        }
+        return StorageCell.fromString(cellString)
     }
 
     override suspend fun isCellAvailable(cell: StorageCell, excludeProductId: String?): Boolean {

@@ -7,6 +7,8 @@ import com.example.sklad_ya.data.model.ExcelData
 import com.example.sklad_ya.data.model.FileLoadState
 import com.example.sklad_ya.data.model.Product
 import com.example.sklad_ya.data.model.ProductStatus
+import com.example.sklad_ya.data.model.StorageCellSettings
+import com.example.sklad_ya.data.preferences.CellSettingsPreferences
 import com.example.sklad_ya.data.repository.ProductRepository
 import com.example.sklad_ya.data.service.ExcelService
 import com.example.sklad_ya.data.service.FileService
@@ -38,7 +40,8 @@ class MainViewModel @Inject constructor(
     private val excelService: ExcelService,
     private val fileService: FileService,
     private val searchService: SearchService,
-    private val storageCellService: StorageCellService
+    private val storageCellService: StorageCellService,
+    private val cellSettingsPreferences: CellSettingsPreferences
 ) : ViewModel() {
 
     companion object {
@@ -48,6 +51,41 @@ class MainViewModel @Inject constructor(
     // Debug логи для отладки
     private val _debugLogs = MutableStateFlow<List<String>>(emptyList())
     val debugLogs: StateFlow<List<String>> = _debugLogs.asStateFlow()
+
+    // Настройки ячеек
+    private val _cellSettings = MutableStateFlow(StorageCellSettings())
+    val cellSettings: StateFlow<StorageCellSettings> = _cellSettings.asStateFlow()
+
+    init {
+        // Загружаем сохранённые настройки при инициализации
+        loadCellSettings()
+    }
+
+    private fun loadCellSettings() {
+        viewModelScope.launch {
+            val savedSettings = cellSettingsPreferences.loadSettings()
+            if (savedSettings != null) {
+                _cellSettings.value = savedSettings
+                addDebugLog("Загружены настройки ячеек: ${savedSettings.availableLetterGroups}")
+            } else {
+                addDebugLog("Используются настройки ячеек по умолчанию")
+            }
+        }
+    }
+
+    fun updateCellSettings(settings: StorageCellSettings) {
+        // Сортируем группы букв по алфавиту
+        val sortedSettings = settings.copy(
+            availableLetterGroups = settings.availableLetterGroups.sorted()
+        )
+        _cellSettings.value = sortedSettings
+
+        // Сохраняем в preferences
+        viewModelScope.launch {
+            cellSettingsPreferences.saveSettings(sortedSettings)
+            addDebugLog("Настройки ячеек сохранены: ${sortedSettings.availableLetterGroups}")
+        }
+    }
 
     /**
      * Добавить сообщение в debug логи с ограничением размера

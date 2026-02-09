@@ -2,20 +2,20 @@ package com.example.sklad_ya.data.model
 
 /**
  * Ячейка хранения товара
- * Формат: Буква + Число1-Число2-Число3
- * Пример: A1-1-1, B5-2-3, S13-3-4
+ * Формат: Группа букв + Число1-Число2-Число3
+ * Пример: A1-1-1, TZ5-2-3, USD13-3-4
  */
 data class StorageCell(
-    val letter: Char,        // Буква: A, B, C, D, F, G, I, J, K, S, Y
-    val number1: Int,       // Первое число: 1-13
-    val number2: Int,       // Второе число: 1-3
-    val number3: Int        // Третье число: 1-4
+    val letterGroup: String,   // Группа букв: A, TZ, USD и т.д.
+    val number1: Int,          // Первое число: 1-13
+    val number2: Int,          // Второе число: 1-3
+    val number3: Int           // Третье число: 1-4
 ) {
     /**
      * Получить строковое представление ячейки
      */
     fun toDisplayString(): String {
-        return "$letter$number1-$number2-$number3"
+        return "$letterGroup$number1-$number2-$number3"
     }
 
     /**
@@ -24,12 +24,13 @@ data class StorageCell(
     companion object {
         fun fromString(cellString: String): StorageCell? {
             return try {
-                val regex = Regex("([A-Z])(\\d+)-(\\d+)-(\\d+)")
+                // Regex поддерживает 1-3 буквы в начале
+                val regex = Regex("([A-Z]{1,3})(\\d+)-(\\d+)-(\\d+)")
                 val match = regex.find(cellString.trim())
                 if (match != null) {
-                    val (letter, num1, num2, num3) = match.destructured
+                    val (letterGroup, num1, num2, num3) = match.destructured
                     StorageCell(
-                        letter = letter.first(),
+                        letterGroup = letterGroup,
                         number1 = num1.toInt(),
                         number2 = num2.toInt(),
                         number3 = num3.toInt()
@@ -47,14 +48,17 @@ data class StorageCell(
      * Проверить корректность ячейки
      */
     fun isValid(): Boolean {
-        return letter in listOf('A', 'B', 'C', 'D', 'F', 'I', 'J', 'K', 'S', 'Y') &&
-                number1 in 1..13 &&
-                number2 in 1..3 &&
-                number3 in 1..4
+        return letterGroup.isNotBlank() &&
+                letterGroup.all { it.isLetter() } &&
+                letterGroup.length <= 3 &&
+                number1 in 1..99 &&
+                number2 in 1..99 &&
+                number3 in 1..99
     }
 }
 
 /**
- * Список всех доступных букв для ячеек хранения
+ * Список всех доступных букв для ячеек хранения (устарело, используйте StorageCellSettings)
  */
+@Deprecated("Use StorageCellSettings.availableLetterGroups instead")
 val AVAILABLE_CELL_LETTERS = listOf('A', 'B', 'C', 'D', 'F', 'G', 'I', 'J', 'K', 'S', 'Y')

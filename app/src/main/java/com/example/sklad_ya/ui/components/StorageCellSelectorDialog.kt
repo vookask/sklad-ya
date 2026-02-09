@@ -5,6 +5,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -22,7 +25,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.sklad_ya.data.model.StorageCell
-import com.example.sklad_ya.data.model.AVAILABLE_CELL_LETTERS
 
 @Composable
 fun StorageCellSelectorDialog(
@@ -30,20 +32,24 @@ fun StorageCellSelectorDialog(
     onCellSelected: (StorageCell) -> Unit,
     onSettingsClick: () -> Unit = {},
     onCellDeleted: (StorageCell) -> Unit = {},
-    currentCells: List<StorageCell> = emptyList()
+    currentCells: List<StorageCell> = emptyList(),
+    availableLetterGroups: List<String> = listOf("A", "B", "C", "D", "F", "G", "I", "J", "K", "S", "Y"),
+    number1Range: IntRange = 1..13,
+    number2Range: IntRange = 1..5,
+    number3Range: IntRange = 1..4
 ) {
-    var selectedLetter by remember { mutableStateOf<Char?>(null) }
+    var selectedLetterGroup by remember { mutableStateOf<String?>(null) }
     var cellToDelete by remember { mutableStateOf<StorageCell?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var selectedNumber1 by remember { mutableStateOf<Int?>(null) }
     var selectedNumber2 by remember { mutableStateOf<Int?>(null) }
     var selectedNumber3 by remember { mutableStateOf<Int?>(null) }
 
-    val numbers1 = (1..13).toList()
-    val numbers2 = (1..5).toList()
-    val numbers3 = (1..4).toList()
+    val numbers1 = number1Range.toList()
+    val numbers2 = number2Range.toList()
+    val numbers3 = number3Range.toList()
 
-    val isComplete = selectedLetter != null && selectedNumber1 != null &&
+    val isComplete = selectedLetterGroup != null && selectedNumber1 != null &&
                      selectedNumber2 != null && selectedNumber3 != null
 
     Dialog(
@@ -65,6 +71,7 @@ fun StorageCellSelectorDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp)
+                    .verticalScroll(rememberScrollState())
             ) {
                 // Заголовок с кнопкой настроек
                 Row(
@@ -97,17 +104,19 @@ fun StorageCellSelectorDialog(
                     modifier = Modifier.padding(bottom = 8.dp, top = 8.dp)
                 )
 
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(5),
-                    contentPadding = PaddingValues(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                Row(
+                    modifier = Modifier
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    items(AVAILABLE_CELL_LETTERS) { letter ->
-                        val isSelected = selectedLetter == letter
+                    availableLetterGroups.forEach { group ->
+                        val isSelected = selectedLetterGroup == group
+                        // Адаптивный размер для групп разной длины
+                        val boxSize = if (group.length <= 2) 48.dp else 64.dp
+
                         Box(
                             modifier = Modifier
-                                .size(48.dp)
+                                .size(width = boxSize, height = 48.dp)
                                 .background(
                                     if (isSelected) {
                                         MaterialTheme.colorScheme.primary
@@ -123,38 +132,38 @@ fun StorageCellSelectorDialog(
                                         MaterialTheme.colorScheme.outline
                                     }
                                 )
-                                .clickable { selectedLetter = letter },
+                                .clickable { selectedLetterGroup = group },
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = letter.toString(),
+                                text = group,
                                 style = MaterialTheme.typography.titleMedium,
                                 color = if (isSelected) {
                                     MaterialTheme.colorScheme.onPrimary
                                 } else {
                                     MaterialTheme.colorScheme.onSurfaceVariant
                                 },
-                                textAlign = TextAlign.Center
+                                textAlign = TextAlign.Center,
+                                fontSize = if (group.length == 1) 20.sp else 16.sp
                             )
                         }
                     }
                 }
 
-                // Выбор числа 1 (1-13)
+                // Выбор числа 1
                 Text(
-                    text = "Число 1 (1-13):",
+                    text = "Число 1 ($number1Range):",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(bottom = 8.dp, top = 16.dp)
                 )
 
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(7),
-                    contentPadding = PaddingValues(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                Row(
+                    modifier = Modifier
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    items(numbers1) { number ->
+                    numbers1.forEach { number ->
                         val isSelected = selectedNumber1 == number
                         Box(
                             modifier = Modifier
@@ -191,24 +200,24 @@ fun StorageCellSelectorDialog(
                     }
                 }
 
-                // Выбор числа 2 (1-5)
+                // Выбор числа 2
                 Text(
-                    text = "Число 2 (1-5):",
+                    text = "Число 2 ($number2Range):",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(bottom = 8.dp, top = 16.dp)
                 )
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     numbers2.forEach { number ->
                         val isSelected = selectedNumber2 == number
                         Box(
                             modifier = Modifier
-                                .weight(1f)
-                                .height(48.dp)
+                                .size(40.dp)
                                 .background(
                                     if (isSelected) {
                                         MaterialTheme.colorScheme.primary
@@ -229,7 +238,7 @@ fun StorageCellSelectorDialog(
                         ) {
                             Text(
                                 text = number.toString(),
-                                style = MaterialTheme.typography.titleMedium,
+                                style = MaterialTheme.typography.bodyMedium,
                                 color = if (isSelected) {
                                     MaterialTheme.colorScheme.onPrimary
                                 } else {
@@ -241,24 +250,24 @@ fun StorageCellSelectorDialog(
                     }
                 }
 
-                // Выбор числа 3 (1-4)
+                // Выбор числа 3
                 Text(
-                    text = "Число 3 (1-4):",
+                    text = "Число 3 ($number3Range):",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(bottom = 8.dp, top = 16.dp)
                 )
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     numbers3.forEach { number ->
                         val isSelected = selectedNumber3 == number
                         Box(
                             modifier = Modifier
-                                .weight(1f)
-                                .height(48.dp)
+                                .size(40.dp)
                                 .background(
                                     if (isSelected) {
                                         MaterialTheme.colorScheme.primary
@@ -279,7 +288,7 @@ fun StorageCellSelectorDialog(
                         ) {
                             Text(
                                 text = number.toString(),
-                                style = MaterialTheme.typography.titleMedium,
+                                style = MaterialTheme.typography.bodyMedium,
                                 color = if (isSelected) {
                                     MaterialTheme.colorScheme.onPrimary
                                 } else {
@@ -373,11 +382,11 @@ fun StorageCellSelectorDialog(
 
                     Button(
                         onClick = {
-                            selectedLetter?.let { letter ->
+                            selectedLetterGroup?.let { letterGroup ->
                                 selectedNumber1?.let { num1 ->
                                     selectedNumber2?.let { num2 ->
                                         selectedNumber3?.let { num3 ->
-                                            val cell = StorageCell(letter, num1, num2, num3)
+                                            val cell = StorageCell(letterGroup, num1, num2, num3)
                                             onCellSelected(cell)
                                             onDismiss()
                                         }

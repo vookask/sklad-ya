@@ -27,6 +27,8 @@ import com.example.sklad_ya.ui.components.ProductTable
 import com.example.sklad_ya.ui.components.SearchBar
 import com.example.sklad_ya.ui.components.StatusMessage
 import com.example.sklad_ya.ui.components.StorageCellSelectorDialog
+import com.example.sklad_ya.ui.components.StorageCellSettingsDialog
+import com.example.sklad_ya.data.model.StorageCellSettings
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,6 +52,9 @@ fun MainScreen(
 
     // Состояние для диалога подтверждения очистки
     var showClearConfirmationDialog by remember { mutableStateOf(false) }
+
+    // Состояние для диалога настроек ячеек
+    var showCellSettingsDialog by remember { mutableStateOf(false) }
 
     // Состояние для показа сообщений пользователю
     val snackbarHostState = remember { SnackbarHostState() }
@@ -256,6 +261,7 @@ fun MainScreen(
 
     // Диалог выбора ячеек хранения
     if (showCellSelectorDialog) {
+        val currentSettings by viewModel.cellSettings.collectAsState()
         StorageCellSelectorDialog(
             onDismiss = {
                 showCellSelectorDialog = false
@@ -268,14 +274,23 @@ fun MainScreen(
                 }
             },
             onSettingsClick = {
-                // TODO: Открыть диалог настроек ячеек
+                showCellSettingsDialog = true
             },
             onCellDeleted = { cellToDelete ->
                 selectedProductId?.let { productId ->
                     viewModel.removeStorageCellFromProduct(productId, cellToDelete.toDisplayString())
+                    // Обновляем local state после удаления
+                    val updatedProduct = viewModel.products.value.find { it.id == productId }
+                    updatedProduct?.let {
+                        currentStorageCells = it.storageCells
+                    }
                 }
             },
-            currentCells = currentStorageCells
+            currentCells = currentStorageCells,
+            availableLetterGroups = currentSettings.availableLetterGroups,
+            number1Range = currentSettings.number1Range,
+            number2Range = currentSettings.number2Range,
+            number3Range = currentSettings.number3Range
         )
     }
 
@@ -297,6 +312,19 @@ fun MainScreen(
                 TextButton(onClick = { showDebugDialog = false }) {
                     Text("Закрыть")
                 }
+            }
+        )
+    }
+
+    // Диалог настроек ячеек
+    if (showCellSettingsDialog) {
+        val currentSettings by viewModel.cellSettings.collectAsState()
+        StorageCellSettingsDialog(
+            currentSettings = currentSettings,
+            onDismiss = { showCellSettingsDialog = false },
+            onApply = { newSettings ->
+                viewModel.updateCellSettings(newSettings)
+                showCellSettingsDialog = false
             }
         )
     }
